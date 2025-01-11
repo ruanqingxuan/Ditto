@@ -1,0 +1,13 @@
+{
+  "XQC_AR_TEST": {
+    "xqc_get_packet_out": {
+      "cong_perf": {
+        "pkt_num": "int",
+        "active_num": "int",
+        "conn_type": "str",
+        "pns": "str",
+        "send_time": "int"
+      }
+    }
+  }
+}

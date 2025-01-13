@@ -118,6 +118,23 @@ typedef enum xqc_CCA_info_sample_type_s {
     XQC_CCA_INFO_SAMPLE_MIN_RTT,
 } xqc_CCA_info_sample_type_t;
 
+typedef enum xqc_CCA_info_trace_index_s {
+    XQC_CCA_INFO_TRACE_DELIVERY_RATE,
+    XQC_CCA_INFO_TRACE_THROUGHPUT,
+    XQC_CCA_INFO_TRACE_RTT,
+    XQC_CCA_INFO_TRACE_LOSS_RATE,
+    XQC_CCA_INFO_TRACE_EXTEND1,
+    XQC_CCA_INFO_TRACE_EXTEND2,
+    XQC_CCA_INFO_TRACE_EXTEND3,
+    XQC_CCA_INFO_TRACE_EXTEND4,
+} xqc_CCA_info_trace_index_t;
+
+typedef enum xqc_CCA_info_trace_type_s {
+    XQC_CCA_INFO_TRACE_NONE,
+    XQC_CCA_INFO_TRACE_UP,
+    XQC_CCA_INFO_TRACE_DOWN,
+} xqc_CCA_info_trace_type_t;
+
 #define XQC_BBR_RTTVAR_COMPENSATION_ENABLED 0
 typedef enum {
     XQC_BBR_FLAG_NONE = 0x00,

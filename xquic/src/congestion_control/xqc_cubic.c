@@ -150,7 +150,8 @@ static void
 xqc_cubic_on_lost(void *cong_ctl, xqc_usec_t lost_sent_time)
 {
     xqc_cubic_t *cubic = (xqc_cubic_t*)(cong_ctl);
-
+    xqc_connection_t *conn = cubic->send_ctl->ctl_conn;
+    xqc_extra_log(conn->log, conn->CS_extra_log, "[lost]");
     cubic->tcp_cwnd_cnt = 0;
 
     /* No reaction if already in a recovery period. */
@@ -262,8 +263,8 @@ xqc_cubic_print_status(void *cong, xqc_sample_t *sampler)
     xqc_send_ctl_t *send_ctl = sampler->send_ctl;
     xqc_connection_t *conn = send_ctl->ctl_conn;
 
-    xqc_extra_log(conn->log, conn->CS_extra_log, "[in_slow_start:%s]", xqc_cubic_in_slow_start(cong) ? "yes" : "no");
-
+    xqc_extra_log(conn->log, conn->CS_extra_log, "[in_slow_start:%s] [ssthresh:%d]", xqc_cubic_in_slow_start(cong) ? "yes" : "no", cubic->ssthresh);
+    xqc_log(conn->log, XQC_LOG_INFO, "[in_slow_start:%s]", xqc_cubic_in_slow_start(cong) ? "yes" : "no");
 }
 
 xqc_cong_ctrl_callback_t xqc_cubic_cb = {

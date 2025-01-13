@@ -69,8 +69,11 @@ static void
 xqc_reno_on_ack(void *cong_ctl, xqc_packet_out_t *po, xqc_usec_t now)
 {
     xqc_new_reno_t *reno = (xqc_new_reno_t*)(cong_ctl);
+    xqc_connection_t *conn = reno->ctl_ctx->ctl_conn;
+
     xqc_usec_t sent_time = po->po_sent_time;
     uint32_t acked_bytes = po->po_used_size;
+
     if (xqc_reno_was_pkt_sent_in_recovery(cong_ctl, sent_time)) {
         /* Do not increase congestion window in recovery period. */
         return;
@@ -142,6 +145,7 @@ xqc_reno_print_status(void *cong_ctl, xqc_sample_t *sampler)
     xqc_connection_t *conn = send_ctl->ctl_conn;
 
     xqc_extra_log(conn->log, conn->CS_extra_log, "[in_slow_start:%s]", xqc_reno_in_slow_start(cong_ctl) ? "yes" : "no");
+    xqc_log(conn->log, XQC_LOG_INFO, "[in_slow_start:%s]", xqc_reno_in_slow_start(cong_ctl) ? "yes" : "no");
 }
 
 xqc_cong_ctrl_callback_t xqc_reno_cb = {

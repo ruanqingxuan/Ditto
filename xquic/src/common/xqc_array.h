@@ -79,4 +79,30 @@ xqc_array_push(xqc_array_t *a)
     return xqc_array_push_n(a, 1);
 }
 
+// added by jndu
+static inline void *
+xqc_array_get(const xqc_array_t *a, size_t index)
+{
+    if (index >= a->size) {
+        return NULL;
+    } else {
+        return a->elts + index * a->elt_size;
+    }
+}
+
+// added by jndu
+static inline void
+xqc_array_push_back(xqc_array_t *a, const void *element)
+{
+    void *p = xqc_array_push(a);
+    memcpy(p, element, a->elt_size);
+}
+
+// added by jndu
+static inline void
+xqc_array_clear(xqc_array_t *a) 
+{
+    a->size = 0;
+}
+
 #endif /*_XQC_H_ARRAY_INCLUDED_*/

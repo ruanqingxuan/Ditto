@@ -159,14 +159,21 @@ typedef struct xqc_send_ctl_s {
     xqc_send_ctl_info_t         ctl_info;
     
     /* for calculate power jndu*/
-    xqc_stream_CCA_info_t       CCA_sampler;
+    xqc_stream_CCA_info_t       stream_CCA_info;
     float                       ctl_throughput;
     float                       ctl_max_throughput;
     float                       ctl_loss_rate;
     xqc_calc_loss_list_node_t   *loss_list;
     /* for CCA switching jndu*/
     xqc_switch_ctx_t           *ctl_switch_ctx;
-    xqc_get_CCA_info_metric_cb  ctl_metric_cb;
+    xqc_get_CCA_info_metric_cb  ctl_metric_cwnd_up_cb;
+    xqc_get_CCA_info_metric_cb  ctl_metric_cwnd_down_cb;
+    xqc_get_CCA_info_metric_thres_cb ctl_metric_cwnd_up_thres_cb;
+    xqc_get_CCA_info_metric_thres_cb ctl_metric_cwnd_down_thres_cb;
+    xqc_get_ip_info_metric_cb   ctl_metric_ip_info_cb;
+    xqc_sum_up_metric_cb        ctl_metric_sum_up_cb;
+    xqc_free_resource_metric_cb ctl_metric_free_resource_cb;
+    xqc_notice_metric_can_evaluate  ctl_metric_notice_can_evaluate_cb;
     void                       *ctl_cong_stack[XQC_CCA_NUM];
     /* for CCA container jndu*/
     int                         mp_index;

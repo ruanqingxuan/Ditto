@@ -34,8 +34,8 @@ xqc_extra_log_init(const char* file, xqc_extra_log_type_t type) {
   if (log == NULL) {
       return NULL;
   }
-
-  log->log_fd = open(file, O_RDWR | O_CREAT | O_TRUNC, 0666);
+  // O_APPEND（追加写入）O_TRUNC（截断文件）
+  log->log_fd = open(file, O_RDWR | O_CREAT | O_APPEND, 0666);
   log->log_type = type;
   return log;
 }

@@ -335,7 +335,6 @@ xqc_send_queue_copy_to_lost(xqc_packet_out_t *packet_out, xqc_send_queue_t *send
         XQC_CONN_ERR(conn, XQC_EMALLOC);
         return;
     }
-    // 放到新包里进行重传
     xqc_packet_out_copy(new_po, packet_out);
     xqc_packet_out_remove_ack_frame(new_po);
 

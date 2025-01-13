@@ -1039,6 +1039,7 @@ xqc_bbr_print_status(void *cong, xqc_sample_t *sampler)
     
     const char *status[] = {"BBR_STARTUP", "BBR_DRAIN", "BBR_PROBE_BW", "BBR_PROBE_RTT"};
     xqc_extra_log(conn->log, conn->CS_extra_log, "[CCA:BBR] [mode:%s]", status[bbr->mode]);
+    xqc_log(conn->log, XQC_LOG_INFO, "[CCA:BBR] [mode:%s]", status[bbr->mode]);
 }
 
 static xqc_bbr_info_interface_t xqc_bbr_info_cb = {

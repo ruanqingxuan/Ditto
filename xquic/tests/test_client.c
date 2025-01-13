@@ -203,7 +203,6 @@ client_ctx_t ctx;
 struct event_base *eb;
 // added by jndu
 int g_enable_CCA_switching = 0;
-
 int g_send_dgram;
 int g_max_dgram_size;
 int g_req_cnt;
@@ -342,63 +341,31 @@ get_val_from_cdf_by_p(double p)
             break;
         }
     }
-    if (v == 0)
-    {
-        v = 1;
-    }
-    return v;
 }
-
 static int
 get_random_from_cdf()
 {
-    int r = 1 + (random() % 1000);
-    double p = r * 1.0 / 1000; // 0.001 ~ 1
-    return get_val_from_cdf_by_p(p);
-}
-
-static inline uint64_t
-now()
-{
-    /* get microsecond unit time */
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    uint64_t ul = tv.tv_sec * (uint64_t)1000000 + tv.tv_usec;
-    return ul;
-}
-
-static void xqc_client_socket_event_callback(int fd, short what, void *arg);
-static void xqc_client_timeout_callback(int fd, short what, void *arg);
-static void xqc_client_abs_timeout_callback(int, short, void *);
-static void xqc_client_bytestream_timeout_callback(int, short, void *);
-
-/* 用于路径增删debug */
-static void xqc_client_path_callback(int fd, short what, void *arg);
-static void xqc_client_epoch_callback(int fd, short what, void *arg);
-
-/**
- * @brief from this line, functions below are added by jndu for CCA switching
- */
-int xqc_client_get_path_index_by_if(unsigned char *name)
-{
-    if (!g_enable_multipath)
+    static inline uint64_t now()
     {
-        return 0;
+        /* get microsecond unit time */
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        uint64_t ul = tv.tv_sec * (uint64_t)1000000 + tv.tv_usec;
+        return ul;
     }
 
-    for (int i = 0; i < g_multi_interface_cnt; i++)
-    {
-        if (!memcmp(g_multi_interface[i], name, strlen(name)))
-        {
-            return i;
-        }
-    }
+    static void xqc_client_socket_event_callback(int fd, short what, void *arg);
+    static void xqc_client_timeout_callback(int fd, short what, void *arg);
+    static void xqc_client_abs_timeout_callback(int, short, void *);
+    static void xqc_client_bytestream_timeout_callback(int, short, void *);
 
-    return -1;
-}
+    /* 用于路径增删debug */
+    static void xqc_client_path_callback(int fd, short what, void *arg);
+    static void xqc_client_epoch_callback(int fd, short what, void *arg);
 
-int xqc_client_get_path_idx_by_id(uint64_t path_id)
-{
+    /**
+     * @brief from this line, functions below are added by jndu for CCA switching
+     */
     if (!g_enable_multipath)
     {
         return 0;
@@ -775,49 +742,94 @@ FAILED:
     return -1;
 }
 
-float xqc_CCA_switching_get_metric(xqc_stream_CCA_info_t *CCA_sampler, xqc_ip_CCA_info_t *CCA_info, int index)
+uint64_t time_ = 0;
+int flag_ = 0;
+#define TRIGGER 2000000
+
+float xqc_CCA_switching_get_metric_cwnd_up(xqc_stream_CCA_info_t *stream_CCA_info)
 {
     // get power1 from throughput
-    uint64_t throughput = xqc_get_CCA_info_sample(CCA_sampler, XQC_CCA_INFO_SAMPLE_THROUGHPUT);
-    uint64_t max_throughput = xqc_get_CCA_info_sample(CCA_sampler, XQC_CCA_INFO_SAMPLE_MAX_THROUGHPUT);
-    float power1 = 0, power2 = 0, power3 = 0, power4 = 0, power5 = 0;
+    uint64_t throughput = xqc_get_CCA_info_sample(stream_CCA_info, XQC_CCA_INFO_SAMPLE_THROUGHPUT);
+    uint64_t max_throughput = 240000000;
+    float power1 = 0, power4 = 0;
     if (max_throughput)
     {
+        // xqc_set_CCA_info_thres(stream_CCA_info, XQC_CCA_INFO_TRACE_THROUGHPUT, 240000000 * 0.5);
         power1 = (throughput * 1.0) / (max_throughput * 1.0);
     }
+    // get power4 from delivery rate
+    uint64_t delivary_rate = xqc_get_CCA_info_sample(stream_CCA_info, XQC_CCA_INFO_SAMPLE_DELIVERY_RATE);
+    uint64_t max_delivary_rate = 1467598;
+    if (max_delivary_rate)
+    {
+        // xqc_set_CCA_info_thres(stream_CCA_info, XQC_CCA_INFO_TRACE_DELIVERY_RATE, max_delivary_rate * 0.6);
+        power4 = (delivary_rate * 1.0) / (max_delivary_rate * 1.0);
+    }
+    uint64_t now_ = now();
+    if (now_ - time_ > TRIGGER)
+    {
+        power4 = 1;
+    }
+    return power4;
+}
+
+float xqc_CCA_switching_get_metric_cwnd_down(xqc_stream_CCA_info_t *stream_CCA_info)
+{
+    float power2 = 0, power3 = 0;
     // get power2 from loss_rate
-    uint64_t loss_rate = xqc_get_CCA_info_sample(CCA_sampler, XQC_CCA_INFO_SAMPLE_LOSS_RATE);
+    uint64_t loss_rate = xqc_get_CCA_info_sample(stream_CCA_info, XQC_CCA_INFO_SAMPLE_LOSS_RATE);
     power2 = 1 - (loss_rate * 1.0 / 10000000);
+    // set thres for loss rate
+    // xqc_set_CCA_info_thres(stream_CCA_info, XQC_CCA_INFO_TRACE_LOSS_RATE, 0.05 * 10000000);
     // get power3 from rtt
-    uint64_t latest_rtt = xqc_get_CCA_info_sample(CCA_sampler, XQC_CCA_INFO_SAMPLE_LATEST_RTT);
-    uint64_t min_rtt = xqc_get_CCA_info_sample(CCA_sampler, XQC_CCA_INFO_SAMPLE_MIN_RTT);
+    uint64_t latest_rtt = xqc_get_CCA_info_sample(stream_CCA_info, XQC_CCA_INFO_SAMPLE_LATEST_RTT);
+    uint64_t min_rtt = xqc_get_CCA_info_sample(stream_CCA_info, XQC_CCA_INFO_SAMPLE_MIN_RTT);
     if (min_rtt)
     {
         power3 = (min_rtt * 1.0) / (latest_rtt * 1.0);
+    }
+    // set thres for rtt
+    if (min_rtt + 2500 <= latest_rtt)
+    {
+        // xqc_set_CCA_info_thres(stream_CCA_info, XQC_CCA_INFO_TRACE_RTT, min_rtt + 35000);
     }
     if (power3 > 1)
     {
         power3 = 1;
     }
-    // get power4 from delivery rate
-    uint64_t delivary_rate = xqc_get_CCA_info_sample(CCA_sampler, XQC_CCA_INFO_SAMPLE_DELIVERY_RATE);
-    uint64_t max_delivary_rate = xqc_get_CCA_info_sample(CCA_sampler, XQC_CCA_INFO_SAMPLE_MAX_DELIVERY_RATE);
-    if (max_delivary_rate)
+    uint64_t now_ = now();
+    if (now_ - time_ > TRIGGER)
     {
-        power4 = (delivary_rate * 1.0) / (max_delivary_rate * 1.0);
+        if (flag_ == 0)
+            xqc_notice_CCA_info_metric_calc_change(stream_CCA_info, "[from throughput sensitive to delay sensitive]");
+        flag_ = 1;
     }
-    // get power5 from ip info
-    uint64_t CCA_cnt_sum = 0;
-    for (size_t i = 0; i < XQC_CCA_NUM; i++)
+    else
     {
-        CCA_cnt_sum += CCA_info[i].CCA_cnt;
+        power3 = 1;
     }
-    if (CCA_cnt_sum)
-    {
-        power5 = (CCA_info[index].CCA_cnt * 1.0) / (CCA_cnt_sum * 1.0);
-    }
-    // get metric
-    return 0 * power5 + 0 * power4 + 0.9 * power3 + 0 * power2;
+    // return 0 * power3 + 1 * power2;
+    return power3;
+}
+
+float xqc_CCA_switching_get_metric_ip_info(xqc_ip_CCA_info_t *CCA_info, int index)
+{
+    float metric_ip_info = 2;
+    time_ = now();
+    // uint64_t CCA_cnt_sum = 0;
+    // for (size_t i = 0; i < XQC_CCA_NUM; i++)
+    // {
+    //     CCA_cnt_sum += CCA_info[i].CCA_cnt;
+    // }
+    // if (CCA_cnt_sum) {
+    //     metric_ip_info = (CCA_info[index].CCA_cnt * 1.0) / (CCA_cnt_sum * 1.0);
+    // }
+    return metric_ip_info;
+}
+
+float xqc_CCA_switching_get_metric_sum_up(float metric_cwnd_up, float metric_cwnd_down, float metric_ip_info)
+{
+    return 1 * metric_cwnd_up + 1 * metric_cwnd_down + metric_ip_info;
 }
 
 /**
@@ -4784,7 +4796,7 @@ int main(int argc, char *argv[])
         {0, 0, 0, 0}};
 
     int ch = 0;
-    while ((ch = getopt_long(argc, argv, "a:p:P:n:c:Ct:T:1s:w:r:l:Ed:u:H:h:Gx:6NMR:i:V:q:o:fe:F:D:b:B:J:Q:U:AyzY:T:k:", long_opts, NULL)) != -1)
+    while ((ch = getopt_long(argc, argv, "a:p:P:n:c:Ct:T:1s:w:r:l:Ed:u:H:h:Gx:6NMR:i:V:q:o:fe:F:D:b:B:J:Q:U:AyzY", long_opts, NULL)) != -1)
     {
         switch (ch)
         {
@@ -4822,7 +4834,7 @@ int main(int argc, char *argv[])
             printf("option req_max :%s\n", optarg);
             g_req_max = atoi(optarg);
             break;
-        case 'c': /* Congestion Control Algorithm. r:reno b:bbr c:cubic B:bbr2 bbr+ bbr2+ */
+        case 'c': /* Congestion Control Algorithm. r:reno b:bbr c:cubic B:bbr2 bbr+ bbr2+ S:pcc scavenger */
             c_cong_ctl = optarg[0];
             if (strncmp("bbr2", optarg, 4) == 0)
             {
@@ -5131,7 +5143,7 @@ int main(int argc, char *argv[])
     };
 
     xqc_cong_ctrl_callback_t cong_ctrl;
-    xqc_switch_state_t init_cong_ctrl;
+    xqc_switch_CCA_t init_cong_ctrl;
     uint32_t cong_flags = 0;
     /* 在这里切换拥塞控制 jndu*/
     if (c_cong_ctl == 'b')
@@ -5182,6 +5194,10 @@ int main(int argc, char *argv[])
         init_cong_ctrl = XQC_COPA;
         cong_ctrl = xqc_copa_cb;
     }
+    // else if (c_cong_ctl == 'S') {
+    //     init_cong_ctrl = XQC_PCC;
+    //     cong_ctrl = xqc_pcc_proteus_cb;
+    // }
     else
     {
         printf("unknown cong_ctrl, option is b, r, c, B, bbr+, bbr2+, u\n");
@@ -5200,6 +5216,7 @@ int main(int argc, char *argv[])
             .cc_optimization_flags = cong_flags,
             .copa_delta_ai_unit = g_copa_ai,
             .copa_delta_base = g_copa_delta,
+            .scavenger_param = 0.0015,
         },
         .spurious_loss_detect_on = 0,
         .keyupdate_pkt_threshold = 0,
@@ -5245,14 +5262,18 @@ int main(int argc, char *argv[])
         conn_settings.datagram_redundant_probe = 30000;
     }
 
-    conn_settings.metric_cb = xqc_CCA_switching_get_metric;
-    conn_settings.enable_CCA_switching = g_enable_CCA_switching;
     // added by qnwang for AR
     conn_settings.expected_time = (xqc_msec_t)g_expected_time;
 
+    conn_settings.metric_cwnd_down_cb = xqc_CCA_switching_get_metric_cwnd_down;
+    conn_settings.metric_cwnd_up_cb = xqc_CCA_switching_get_metric_cwnd_up;
+    conn_settings.metric_cwnd_ip_info_cb = xqc_CCA_switching_get_metric_ip_info;
+    conn_settings.metric_cwnd_sum_up_cb = xqc_CCA_switching_get_metric_sum_up;
+
+    conn_settings.enable_CCA_switching = g_enable_CCA_switching;
+
     g_conn_settings = &conn_settings;
 
-    xqc_config_t config;
     if (xqc_engine_get_default_config(&config, XQC_ENGINE_CLIENT) < 0)
     {
         return -1;
@@ -5285,10 +5306,7 @@ int main(int argc, char *argv[])
     }
 
     /* test different cid_len */
-    if (g_test_case == 13)
-    {
-        config.cid_len = XQC_MAX_CID_LEN;
-    }
+    config.cid_len = XQC_MAX_CID_LEN;
 
     /* check draft-29 version */
     if (g_test_case == 17)
@@ -5297,13 +5315,8 @@ int main(int argc, char *argv[])
     }
 
 #if defined(XQC_SUPPORT_SENDMMSG)
-    if (g_test_case == 20)
-    { /* test sendmmsg */
-        printf("test sendmmsg!\n");
-        tcbs.write_mmsg = xqc_client_write_mmsg;
-        tcbs.write_mmsg_ex = xqc_client_mp_write_mmsg;
+    if (g_test_case == 20) /* test sendmmsg */
         config.sendmmsg_on = 1;
-    }
 #endif
 
     if (g_test_case == 24)
@@ -5634,7 +5647,6 @@ int main(int argc, char *argv[])
                 xqc_client_request_send(user_stream->h3_request, user_stream);
             }
         }
-
         // open bytestreams and send data
         for (int i = 0; i < g_req_paral; i++)
         {

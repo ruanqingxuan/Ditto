@@ -1118,13 +1118,13 @@ xqc_demo_cli_init_conneciton_settings(xqc_conn_settings_t* settings,
         break;
 
     case CC_TYPE_CUBIC:
-        cong_ctrl = xqc_reno_cb;
-        break;
-
-    case CC_TYPE_RENO:
         cong_ctrl = xqc_cubic_cb;
         break;
-
+    #ifndef XQC_DISABLE_RENO
+    case CC_TYPE_RENO:
+        cong_ctrl = xqc_reno_cb;
+        break;
+    #endif
     default:
         break;
     }

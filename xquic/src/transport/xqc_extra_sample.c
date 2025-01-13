@@ -14,9 +14,9 @@ void xqc_extra_sample_loss_list_init(xqc_calc_loss_list_node_t *drop)
     drop->drop_range.send_pktno_range.high = 0;
 }
 
-void xqc_extra_sample_loss_list_add(xqc_calc_loss_list_node_t *drop, xqc_packet_number_t high, xqc_packet_number_t low)
+void xqc_extra_sample_loss_list_add(xqc_calc_loss_list_node_t* drop, xqc_packet_number_t high, xqc_packet_number_t low)
 {
-    xqc_calc_loss_list_node_t *new_node = xqc_calloc(1, sizeof(xqc_calc_loss_list_node_t));
+    xqc_calc_loss_list_node_t* new_node = xqc_calloc(1, sizeof(xqc_calc_loss_list_node_t));
     new_node->drop_range.send_pktno_range.high = high;
     new_node->drop_range.send_pktno_range.low = low;
     new_node->drop_range.num_of_drop = 0;
@@ -24,15 +24,13 @@ void xqc_extra_sample_loss_list_add(xqc_calc_loss_list_node_t *drop, xqc_packet_
     xqc_list_add_tail(&new_node->list_head, &drop->list_head);
 }
 
-void xqc_extra_sample_loss_list_del(xqc_calc_loss_list_node_t *node, xqc_list_head_t *del_pos)
-{
+void xqc_extra_sample_loss_list_del(xqc_calc_loss_list_node_t* node, xqc_list_head_t *del_pos)
+{   
     xqc_list_head_t *pos = NULL, *next = NULL;
     xqc_calc_loss_list_node_t *drop = NULL;
 
-    xqc_list_for_each_safe(pos, next, &node->list_head)
-    {
-        if (del_pos == pos)
-        {
+    xqc_list_for_each_safe(pos, next, &node->list_head) {
+        if (del_pos == pos) {
             break;
         }
         drop = xqc_list_entry(pos, xqc_calc_loss_list_node_t, list_head);
@@ -85,8 +83,7 @@ void xqc_extra_sample_loss_list_update(xqc_send_ctl_t *send_ctl, xqc_packet_numb
         }
 
         /* 删除delete_pos之前的节点*/
-        if (del_pos)
-        {
+        if (del_pos) {
             xqc_extra_sample_loss_list_del(loss_list, del_pos->next);
         }
     }

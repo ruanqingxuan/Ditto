@@ -204,8 +204,6 @@ set(
     "src/transport/scheduler/xqc_scheduler_common.c"
     "src/transport/scheduler/xqc_scheduler_backup.c"
     "src/transport/scheduler/xqc_scheduler_rap.c"
-    # added by qnwang for AR
-    "src/transport/xqc_active_retrans.c"
 )
 
 # TLS source
@@ -263,6 +261,7 @@ set(
     "src/congestion_control/xqc_bbr.c"
     "src/congestion_control/xqc_unlimited_cc.c"
     "src/congestion_control/xqc_copa.c"
+    "src/congestion_control/xqc_coward.c"
     "src/congestion_control/xqc_window_filter.c"
     "src/congestion_control/xqc_sample.c"
 )
@@ -325,7 +324,7 @@ else()
         xquic
         "-ldl -Wl,--whole-archive -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/scripts/xquic.lds"
         ${SSL_LIB_PATH}
-            "-L/home/qnwang/worknew/AR/xquic/third_party/libxml2/lib -lxml2 -lz -lm"
+            "-L/home/qnwang/worknew/CS/xquic/third_party/libxml2/lib -lxml2 -lz -lm"
         "-Wl,--no-whole-archive"
         -lpthread
     )

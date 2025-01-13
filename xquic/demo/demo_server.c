@@ -1296,9 +1296,11 @@ xqc_demo_svr_init_conn_settings(xqc_demo_svr_args_t *args)
     case CC_TYPE_CUBIC:
         ccc = xqc_cubic_cb;
         break;
+    #ifndef XQC_DISABLE_RENO
     case CC_TYPE_RENO:
         ccc = xqc_reno_cb;
         break;
+    #endif
     default:
         break;
     }

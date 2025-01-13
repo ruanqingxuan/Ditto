@@ -120,6 +120,9 @@ XQUIC_VERS_1.0 {
         xqc_CCA_info_container_get;
         xqc_CCA_info_container_find;
         xqc_get_CCA_info_sample;
+        xqc_set_CCA_info_thres;
+        xqc_notice_CCA_info_metric_calc_change;
+        xqc_coward_cb;
     local:
         *;
 };

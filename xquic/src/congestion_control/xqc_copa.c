@@ -566,6 +566,8 @@ xqc_copa_print_status(void *cong, xqc_sample_t *sampler)
     const char *direction[] = {"COPA_UNDEFINE", "COPA_UP", "COPA_DOWN"};
     xqc_extra_log(conn->log, conn->CS_extra_log, "[CCA:COPA] [direction:%s] [in_slow_start:%s]",
                     direction[copa->curr_dir], copa->in_slow_start ? "yes" : "no" );
+    xqc_log(conn->log, XQC_LOG_INFO, "[CCA:COPA] [direction:%s] [in_slow_start:%s]",
+                    direction[copa->curr_dir], copa->in_slow_start ? "yes" : "no");
 }
 
 xqc_cong_ctrl_callback_t xqc_copa_cb = {

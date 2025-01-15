@@ -490,7 +490,8 @@ xqc_engine_create(xqc_engine_type_t engine_type,
 
     engine->CS_extra_log = xqc_extra_log_init(engine_type == XQC_ENGINE_CLIENT ? XQC_CLIENT_CS_EXTRA_LOG_FILE : XQC_SERVER_CS_EXTRA_LOG_FILE,
                                               XQC_CS_TEST);
-
+    engine->AR_extra_log = xqc_extra_log_init(engine_type == XQC_ENGINE_CLIENT ? XQC_CLIENT_AR_EXTRA_LOG_FILE : XQC_SERVER_AR_EXTRA_LOG_FILE,
+                                              XQC_AR_TEST);
     engine->rand_generator = xqc_random_generator_create(engine->log);
     if (engine->rand_generator == NULL) {
         goto fail;

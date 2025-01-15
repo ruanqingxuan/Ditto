@@ -203,6 +203,7 @@ client_ctx_t ctx;
 struct event_base *eb;
 // added by jndu
 int g_enable_CCA_switching = 0;
+
 int g_send_dgram;
 int g_max_dgram_size;
 int g_req_cnt;
@@ -341,40 +342,66 @@ get_val_from_cdf_by_p(double p)
             break;
         }
     }
+    if (v == 0)
+    {
+        v = 1;
+    }
+    return v;
 }
+
 static int
 get_random_from_cdf()
 {
-    static inline uint64_t now()
-    {
-        /* get microsecond unit time */
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-        uint64_t ul = tv.tv_sec * (uint64_t)1000000 + tv.tv_usec;
-        return ul;
-    }
+    int r = 1 + (random() % 1000);
+    double p = r * 1.0 / 1000; // 0.001 ~ 1
+    return get_val_from_cdf_by_p(p);
+}
 
-    static void xqc_client_socket_event_callback(int fd, short what, void *arg);
-    static void xqc_client_timeout_callback(int fd, short what, void *arg);
-    static void xqc_client_abs_timeout_callback(int, short, void *);
-    static void xqc_client_bytestream_timeout_callback(int, short, void *);
+static inline uint64_t
+now()
+{
+    /* get microsecond unit time */
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    uint64_t ul = tv.tv_sec * (uint64_t)1000000 + tv.tv_usec;
+    return ul;
+}
 
-    /* 用于路径增删debug */
-    static void xqc_client_path_callback(int fd, short what, void *arg);
-    static void xqc_client_epoch_callback(int fd, short what, void *arg);
+static void xqc_client_socket_event_callback(int fd, short what, void *arg);
+static void xqc_client_timeout_callback(int fd, short what, void *arg);
+static void xqc_client_abs_timeout_callback(int, short, void *);
+static void xqc_client_bytestream_timeout_callback(int, short, void *);
 
-    /**
-     * @brief from this line, functions below are added by jndu for CCA switching
-     */
-    if (!g_enable_multipath)
-    {
+/* 用于路径增删debug */
+static void xqc_client_path_callback(int fd, short what, void *arg);
+static void xqc_client_epoch_callback(int fd, short what, void *arg);
+
+/**
+ * @brief from this line, functions below are added by jndu for CCA switching
+ */
+int xqc_client_get_path_index_by_if(unsigned char* name) 
+{
+    if (!g_enable_multipath) {
         return 0;
     }
 
-    for (int i = 0; i < g_multi_interface_cnt; i++)
-    {
-        if (g_client_path[i].path_id == path_id)
-        {
+    for (int i = 0; i < g_multi_interface_cnt; i++) {
+        if (!memcmp(g_multi_interface[i], name, strlen(name))) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+int xqc_client_get_path_idx_by_id(uint64_t path_id)
+{
+    if (!g_enable_multipath) {
+        return 0;
+    }
+
+    for (int i = 0; i < g_multi_interface_cnt; i++) {
+        if (g_client_path[i].path_id == path_id) {
             return i;
         }
     }
@@ -388,23 +415,19 @@ char g_peer_addr_str[INET6_ADDRSTRLEN];
 char *
 xqc_local_addr2str(const struct sockaddr *local_addr, socklen_t local_addrlen)
 {
-    if (local_addrlen == 0 || local_addr == NULL)
-    {
+    if (local_addrlen == 0 || local_addr == NULL) {
         g_local_addr_str[0] = '\0';
         return g_local_addr_str;
     }
 
     struct sockaddr_in *sa_local = (struct sockaddr_in *)local_addr;
-    if (sa_local->sin_family == AF_INET)
-    {
-        if (inet_ntop(sa_local->sin_family, &sa_local->sin_addr, g_local_addr_str, local_addrlen) == NULL)
-        {
+    if (sa_local->sin_family == AF_INET) {
+        if (inet_ntop(sa_local->sin_family, &sa_local->sin_addr, g_local_addr_str, local_addrlen) == NULL) {
             g_local_addr_str[0] = '\0';
         }
-    }
-    else
-    {
-        if (inet_ntop(sa_local->sin_family, &((struct sockaddr_in6 *)sa_local)->sin6_addr,
+
+    } else {
+        if (inet_ntop(sa_local->sin_family, &((struct sockaddr_in6*)sa_local)->sin6_addr,
                       g_local_addr_str, local_addrlen) == NULL)
         {
             g_local_addr_str[0] = '\0';
@@ -414,26 +437,23 @@ xqc_local_addr2str(const struct sockaddr *local_addr, socklen_t local_addrlen)
     return g_local_addr_str;
 }
 
+
 char *
 xqc_peer_addr2str(const struct sockaddr *peer_addr, socklen_t peer_addrlen)
 {
-    if (peer_addrlen == 0 || peer_addr == NULL)
-    {
+    if (peer_addrlen == 0 || peer_addr == NULL) {
         g_peer_addr_str[0] = '\0';
         return g_peer_addr_str;
     }
 
     struct sockaddr_in *sa_peer = (struct sockaddr_in *)peer_addr;
-    if (sa_peer->sin_family == AF_INET)
-    {
-        if (inet_ntop(sa_peer->sin_family, &sa_peer->sin_addr, g_peer_addr_str, peer_addrlen) == NULL)
-        {
+    if (sa_peer->sin_family == AF_INET) {
+        if (inet_ntop(sa_peer->sin_family, &sa_peer->sin_addr, g_peer_addr_str, peer_addrlen) == NULL) {
             g_peer_addr_str[0] = '\0';
         }
-    }
-    else
-    {
-        if (inet_ntop(sa_peer->sin_family, &((struct sockaddr_in6 *)sa_peer)->sin6_addr,
+
+    } else {
+        if (inet_ntop(sa_peer->sin_family, &((struct sockaddr_in6*)sa_peer)->sin6_addr,
                       g_peer_addr_str, peer_addrlen) == NULL)
         {
             g_peer_addr_str[0] = '\0';
@@ -443,27 +463,26 @@ xqc_peer_addr2str(const struct sockaddr *peer_addr, socklen_t peer_addrlen)
     return g_peer_addr_str;
 }
 
-void *xqc_client_get_mp_by_addr(xqc_CCA_info_container_t *container, const struct sockaddr *sa_peer, socklen_t peer_addrlen)
+void *xqc_client_get_mp_by_addr(xqc_CCA_info_container_t *container, const struct sockaddr *sa_peer, socklen_t peer_addrlen) 
 {
-    char addr_str[2 * (INET6_ADDRSTRLEN) + 10];
-    memset(addr_str, 0, sizeof(addr_str));
-    size_t addr_len = snprintf(addr_str, sizeof(addr_str), "l-%s-%d p-%s-%d",
-                               "127.0.0.1", 10,
-                               xqc_peer_addr2str((struct sockaddr *)sa_peer, peer_addrlen),
-                               10);
-    xqc_ip_CCA_info_t **mp_map = xqc_CCA_info_container_find(container, addr_str, addr_len);
-    if (!mp_map)
+  char addr_str[2 * (INET6_ADDRSTRLEN) + 10];
+  memset(addr_str, 0, sizeof(addr_str));
+  size_t addr_len = snprintf(addr_str, sizeof(addr_str), "l-%s-%d p-%s-%d",
+                                      "127.0.0.1", 10,
+                                      xqc_peer_addr2str((struct sockaddr*)sa_peer, peer_addrlen),
+                                      10);
+  xqc_ip_CCA_info_t **mp_map = xqc_CCA_info_container_find(container, addr_str, addr_len);
+  if (!mp_map) {
+    mp_map = malloc(sizeof(xqc_ip_CCA_info_t *) * XQC_MAX_PATHS_COUNT);
+    memset(mp_map, 0, sizeof(xqc_ip_CCA_info_t *) * XQC_MAX_PATHS_COUNT);
+    if (xqc_CCA_info_container_add(container,
+                                   addr_str, addr_len, mp_map))
     {
-        mp_map = malloc(sizeof(xqc_ip_CCA_info_t *) * XQC_MAX_PATHS_COUNT);
-        memset(mp_map, 0, sizeof(xqc_ip_CCA_info_t *) * XQC_MAX_PATHS_COUNT);
-        if (xqc_CCA_info_container_add(container,
-                                       addr_str, addr_len, mp_map))
-        {
-            free(mp_map);
-            mp_map = NULL;
-        }
+      free(mp_map);
+      mp_map = NULL;
     }
-    return mp_map;
+  }
+  return mp_map;
 }
 
 const xmlChar *IPCONF_ = "ip";
@@ -479,55 +498,46 @@ const xmlChar *POWER2 = "power2";
 const xmlChar *POWER3 = "power3";
 
 xqc_int_t
-xqc_client_load_CCA_info(xmlDocPtr doc, xmlNodePtr cur, xqc_ip_CCA_info_t *CCA_info)
-{
+xqc_client_load_CCA_info (xmlDocPtr doc, xmlNodePtr cur, xqc_ip_CCA_info_t *CCA_info) {
 
-    memset(CCA_info, 0, sizeof(xqc_ip_CCA_info_t) * XQC_CCA_NUM);
-    xmlNodePtr cur_child = cur->children;
-    xmlChar *id;
-    if (cur == NULL)
-    {
-        return -1;
-    }
+  memset(CCA_info, 0, sizeof(xqc_ip_CCA_info_t) * XQC_CCA_NUM);
+  xmlNodePtr cur_child = cur->children;
+  xmlChar *id;
+  if (cur == NULL) {
+    return -1;
+  }
 
-    /* traverse CCA info */
-    while (cur_child != NULL)
-    {
-        if (xmlStrcmp(cur_child->name, CCA) == 0)
-        {
-            id = xmlGetProp(cur_child, "id");
-            int id_i = atoi(id);
-            xqc_ip_CCA_info_t *info = CCA_info + id_i;
+  /* traverse CCA info */
+  while (cur_child != NULL) {
+    if (xmlStrcmp(cur_child->name, CCA) == 0) {
+        id = xmlGetProp(cur_child, "id");
+        int id_i = atoi(id);
+        xqc_ip_CCA_info_t *info = CCA_info + id_i;
 
-            /* put nums from xml file to CCA_info */
-            xmlNodePtr child_child = cur_child->children;
-            while (child_child != NULL)
-            {
-                char *endptr;
-                if (!xmlStrcmp(child_child->name, CNT))
-                {
-                    endptr = xmlNodeListGetString(doc, child_child->children, 0);
-                    info->CCA_cnt = atoi((const char *)xmlNodeListGetString(doc, child_child->children, 0));
-                }
-                if (!xmlStrcmp(child_child->name, POWER1))
-                {
-                    info->CCA_power1 = strtod((const char *)xmlNodeListGetString(doc, child_child->children, 0), &endptr);
-                }
-                if (!xmlStrcmp(child_child->name, POWER2))
-                {
-                    info->CCA_power2 = strtod((const char *)xmlNodeListGetString(doc, child_child->children, 0), &endptr);
-                }
-                if (!xmlStrcmp(child_child->name, POWER3))
-                {
-                    info->CCA_power3 = strtod((const char *)xmlNodeListGetString(doc, child_child->children, 0), &endptr);
-                }
-                child_child = child_child->next;
+        /* put nums from xml file to CCA_info */
+        xmlNodePtr child_child = cur_child->children;
+        while (child_child != NULL) {
+            char* endptr;
+            if (!xmlStrcmp(child_child->name, CNT)) {
+                endptr = xmlNodeListGetString(doc, child_child->children, 0);
+                info->CCA_cnt = atoi((const char*)xmlNodeListGetString(doc, child_child->children, 0));
             }
+            if (!xmlStrcmp(child_child->name, POWER1)) {
+                info->CCA_power1 = strtod((const char*)xmlNodeListGetString(doc, child_child->children, 0), &endptr);
+            }
+            if (!xmlStrcmp(child_child->name, POWER2)) {
+                info->CCA_power2 = strtod((const char*)xmlNodeListGetString(doc, child_child->children, 0), &endptr);
+            }
+            if (!xmlStrcmp(child_child->name, POWER3)) {
+                info->CCA_power3 = strtod((const char*)xmlNodeListGetString(doc, child_child->children, 0), &endptr);
+            }
+            child_child = child_child->next;
         }
-        cur_child = cur_child->next;
     }
+    cur_child = cur_child->next;
+  }
 
-    return 0;
+  return 0;
 }
 
 /**
@@ -535,287 +545,235 @@ xqc_client_load_CCA_info(xmlDocPtr doc, xmlNodePtr cur, xqc_ip_CCA_info_t *CCA_i
  * @return 0 for can read config file and successfully initialized
  * @return 1 for cant read config file and return a blank hash
  * @return -1 for memory fatal error
- */
+*/
 xqc_int_t
-xqc_client_load_CCA_param(xqc_CCA_info_container_t *container, const char *file)
-{
-    xmlDocPtr doc;
-    xmlNodePtr cur;
-    /* for 1-level node, parsing the ip, port and interface. */
-    xmlChar *addr, *if_;
-    /* for 2-level node, parsing the different CCA. */
-    xmlChar *id;
+xqc_client_load_CCA_param (xqc_CCA_info_container_t *container, const char* file) {
+  xmlDocPtr doc;
+  xmlNodePtr cur;
+  /* for 1-level node, parsing the ip, port and interface. */
+  xmlChar *addr, *if_;
+  /* for 2-level node, parsing the different CCA. */
+  xmlChar *id;
 
-    /* get the tree. */
-    doc = xmlReadFile(file, NULL, 0);
-    if (doc == NULL)
-    {
-        goto FAILED;
-    }
+  /* get the tree. */
+  doc = xmlReadFile(file, NULL, 0);
+  if (doc == NULL) {
+    goto FAILED;
+  }
 
-    /* get the root. */
-    cur = xmlDocGetRootElement(doc);
-    if (cur == NULL)
-    {
-        goto FAILED;
-    }
+  /* get the root. */
+  cur = xmlDocGetRootElement(doc);
+  if (cur == NULL) {
+    goto FAILED;
+  }
 
-    if (xmlStrcmp(cur->name, IPCONF_) != 0)
-    {
-        goto FAILED;
-    }
+  if (xmlStrcmp(cur->name, IPCONF_) != 0) {
+    goto FAILED;
+  }
 
-    /* traverse all the node. */
-    cur = cur->children;
-    /* traverse by ip+port */
-    while (cur != NULL)
-    {
-        if (xmlStrcmp(cur->name, CONF_) == 0)
-        {
-            addr = xmlGetProp(cur, ADDR);
+  /* traverse all the node. */
+  cur = cur->children;
+  /* traverse by ip+port */
+  while (cur != NULL) {
+    if (xmlStrcmp(cur->name, CONF_) == 0) {
+      addr = xmlGetProp(cur, ADDR);
 
-            xmlNodePtr cur_child = cur->children;
-            /* traverse by interface and add mp_map to conn_CCA_hash */
-            xqc_ip_CCA_info_t **mp_map = malloc(sizeof(xqc_ip_CCA_info_t *) * XQC_MAX_PATHS_COUNT);
-            memset(mp_map, 0, sizeof(xqc_ip_CCA_info_t *) * XQC_MAX_PATHS_COUNT);
-            while (cur_child != NULL)
-            {
-                if (xmlStrcmp(cur_child->name, INTERFACE) == 0)
-                {
-                    if_ = xmlGetProp(cur_child, IF);
-                    int index = xqc_client_get_path_index_by_if(if_);
-                    if (index >= 0)
-                    {
-                        xqc_ip_CCA_info_t *CCA_info = malloc(sizeof(xqc_ip_CCA_info_t) * XQC_CCA_NUM);
-                        xqc_client_load_CCA_info(doc, cur_child, CCA_info);
-                        mp_map[index] = CCA_info;
-                    }
-                }
-                cur_child = cur_child->next;
-            }
-
-            /* add mp_hash to conn_CCA_hash */
-            if (xqc_CCA_info_container_add(container, addr, strlen(addr), mp_map))
-            {
-                free(mp_map);
-                return -1;
-            }
+      xmlNodePtr cur_child = cur->children;
+      /* traverse by interface and add mp_map to conn_CCA_hash */
+      xqc_ip_CCA_info_t **mp_map = malloc(sizeof(xqc_ip_CCA_info_t*) * XQC_MAX_PATHS_COUNT);
+      memset(mp_map, 0, sizeof(xqc_ip_CCA_info_t*) * XQC_MAX_PATHS_COUNT);
+      while (cur_child != NULL) {
+        if (xmlStrcmp(cur_child->name, INTERFACE) == 0) {
+          if_ = xmlGetProp(cur_child, IF);
+          int index = xqc_client_get_path_index_by_if(if_);
+          if (index >= 0) {
+            xqc_ip_CCA_info_t *CCA_info = malloc(sizeof(xqc_ip_CCA_info_t) * XQC_CCA_NUM);
+            xqc_client_load_CCA_info(doc, cur_child, CCA_info);
+            mp_map[index] = CCA_info;
+          }
         }
-        cur = cur->next;
-    }
+        cur_child = cur_child->next;
+      }
 
-    return 0;
+      /* add mp_hash to conn_CCA_hash */
+      if (xqc_CCA_info_container_add(container, addr, strlen(addr), mp_map)) {
+        free(mp_map);
+        return -1;
+      }
+
+    }
+    cur = cur->next;
+  }
+
+  return 0;
 FAILED:
-    return 1;
+  return 1;
 }
 
 xqc_int_t
-xqc_client_save_CCA_info(xmlNodePtr ip_node, xqc_ip_CCA_info_t **mp_map)
-{
-    for (size_t i = 0; i < g_multi_interface_cnt; i++)
-    {
-        xqc_ip_CCA_info_t *CCA_info = mp_map[i];
+xqc_client_save_CCA_info (xmlNodePtr ip_node, xqc_ip_CCA_info_t **mp_map) {
+  for (size_t i = 0; i < g_multi_interface_cnt; i++)
+  {
+    xqc_ip_CCA_info_t *CCA_info = mp_map[i];
 
-        if (CCA_info)
-        {
-            /* add interface node */
-            xmlNodePtr if_node = xmlNewNode(NULL, INTERFACE);
-            if (if_node == NULL)
-            {
-                return -1;
-            }
+    if (CCA_info) {
+      /* add interface node */
+      xmlNodePtr if_node = xmlNewNode(NULL, INTERFACE);
+      if (if_node == NULL) {
+        return -1;
+      }
+      
+      xmlNewProp(if_node, IF, g_multi_interface[i]);
+      /* add CCA_info to interface node */
+      for (int j = 0; j < XQC_CCA_NUM; j++)
+      {
+        unsigned char content[10];
+        memset(content, 0, 10);
 
-            xmlNewProp(if_node, IF, g_multi_interface[i]);
-            /* add CCA_info to interface node */
-            for (int j = 0; j < XQC_CCA_NUM; j++)
-            {
-                unsigned char content[10];
-                memset(content, 0, 10);
-
-                xmlNodePtr CCA_node = xmlNewNode(NULL, CCA);
-                sprintf(content, "%d", j);
-                xmlNewProp(CCA_node, ID, content);
-                if (CCA_node == NULL)
-                {
-                    goto FAILED;
-                }
-
-                memset(content, 0, 10);
-                sprintf(content, "%d", CCA_info[j].CCA_cnt);
-                if (xmlNewChild(CCA_node, NULL, CNT, content) == NULL)
-                {
-                    goto FAILED;
-                }
-
-                memset(content, 0, 10);
-                sprintf(content, "%f", CCA_info[j].CCA_power1);
-                if (xmlNewChild(CCA_node, NULL, POWER1, content) == NULL)
-                {
-                    goto FAILED;
-                }
-
-                memset(content, 0, 10);
-                sprintf(content, "%f", CCA_info[j].CCA_power2);
-                if (xmlNewChild(CCA_node, NULL, POWER2, content) == NULL)
-                {
-                    goto FAILED;
-                }
-
-                memset(content, 0, 10);
-                sprintf(content, "%f", CCA_info[j].CCA_power3);
-                if (xmlNewChild(CCA_node, NULL, POWER3, content) == NULL)
-                {
-                    goto FAILED;
-                }
-
-                xmlAddChild(if_node, CCA_node);
-            }
-
-            xmlAddChild(ip_node, if_node);
+        xmlNodePtr CCA_node = xmlNewNode(NULL, CCA);
+        sprintf(content, "%d", j);
+        xmlNewProp(CCA_node, ID, content);
+        if (CCA_node == NULL) {
+          goto FAILED;
         }
+
+        memset(content, 0, 10);
+        sprintf(content, "%d", CCA_info[j].CCA_cnt);
+        if (xmlNewChild(CCA_node, NULL, CNT, content) == NULL ) {
+          goto FAILED;
+        }
+
+        memset(content, 0, 10);
+        sprintf(content, "%f", CCA_info[j].CCA_power1);
+        if (xmlNewChild(CCA_node, NULL, POWER1, content) == NULL ) {
+          goto FAILED;
+        }
+
+        memset(content, 0, 10);
+        sprintf(content, "%f", CCA_info[j].CCA_power2);
+        if (xmlNewChild(CCA_node, NULL, POWER2, content) == NULL ) {
+          goto FAILED;
+        }
+
+        memset(content, 0, 10);
+        sprintf(content, "%f", CCA_info[j].CCA_power3);
+        if (xmlNewChild(CCA_node, NULL, POWER3, content) == NULL ) {
+          goto FAILED;
+        }
+
+        xmlAddChild(if_node, CCA_node);
+      }
+
+      xmlAddChild(ip_node, if_node);
+
     }
-    return 0;
+  }
+  return 0;
 
 FAILED:
-    return -1;
+  return -1;
 }
 
 xqc_int_t
-xqc_client_save_CCA_param(xqc_CCA_info_container_t *container, const char *file)
-{
-    xmlDocPtr doc = NULL;
-    xmlNodePtr root = NULL;
+xqc_client_save_CCA_param (xqc_CCA_info_container_t *container, const char* file) {
+  xmlDocPtr doc = NULL;
+  xmlNodePtr root = NULL;
 
-    /* create a new xml file */
-    doc = xmlNewDoc(BAD_CAST "1.0");
-    if (doc == NULL)
-    {
-        goto FAILED;
+  /* create a new xml file */
+  doc = xmlNewDoc(BAD_CAST"1.0");
+  if (doc == NULL) {
+    goto FAILED;
+  }
+
+  /* create a root node */
+  root = xmlNewNode(NULL, IPCONF_);
+  if (root == NULL) {
+    goto FAILED;
+  }
+
+  /* add root to doc */
+  xmlDocSetRootElement(doc, root);
+
+  /* traverse conn_CCA_hash */
+
+  xqc_ip_CCA_info_t **mp_map;
+  char addr[2 * (INET6_ADDRSTRLEN) + 10];
+  size_t addr_len;
+  while ((mp_map = xqc_CCA_info_container_get(container, addr, &addr_len))) {
+    /* add ip+port node */
+    xmlNodePtr ip_node = xmlNewNode(NULL, CONF_);
+    if (ip_node == NULL) {
+      goto FAILED;
     }
-
-    /* create a root node */
-    root = xmlNewNode(NULL, IPCONF_);
-    if (root == NULL)
-    {
-        goto FAILED;
+    xmlNewProp(ip_node, ADDR, addr);
+    /* add interface node */
+    if (xqc_client_save_CCA_info(ip_node, mp_map)) {
+      goto FAILED;
     }
+    xqc_CCA_info_container_free_value(mp_map);
+    /* add ip+port node to root */
+    xmlAddChild(root, ip_node);
+    xqc_CCA_info_container_delete(container, addr, addr_len);
+  }
 
-    /* add root to doc */
-    xmlDocSetRootElement(doc, root);
+  /* save doc to xml file */
+  xmlSaveFormatFileEnc(file, doc, "UTF-8", 1);
+  xmlFreeDoc(doc);
 
-    /* traverse conn_CCA_hash */
-
-    xqc_ip_CCA_info_t **mp_map;
-    char addr[2 * (INET6_ADDRSTRLEN) + 10];
-    size_t addr_len;
-    while ((mp_map = xqc_CCA_info_container_get(container, addr, &addr_len)))
-    {
-        /* add ip+port node */
-        xmlNodePtr ip_node = xmlNewNode(NULL, CONF_);
-        if (ip_node == NULL)
-        {
-            goto FAILED;
-        }
-        xmlNewProp(ip_node, ADDR, addr);
-        /* add interface node */
-        if (xqc_client_save_CCA_info(ip_node, mp_map))
-        {
-            goto FAILED;
-        }
-        xqc_CCA_info_container_free_value(mp_map);
-        /* add ip+port node to root */
-        xmlAddChild(root, ip_node);
-        xqc_CCA_info_container_delete(container, addr, addr_len);
-    }
-
-    /* save doc to xml file */
-    xmlSaveFormatFileEnc(file, doc, "UTF-8", 1);
+  return 0;
+FAILED:
+  if (doc) {
     xmlFreeDoc(doc);
+  }
 
-    return 0;
-FAILED:
-    if (doc)
-    {
-        xmlFreeDoc(doc);
-    }
-
-    return -1;
+  return -1;
 }
 
-uint64_t time_ = 0;
-int flag_ = 0;
-#define TRIGGER 2000000
+const uint64_t max_delivary_rate = 1800000;
 
-float xqc_CCA_switching_get_metric_cwnd_up(xqc_stream_CCA_info_t *stream_CCA_info)
+float cs_metric_cwnd_up(xqc_stream_CCA_info_t *stream_CCA_info)
 {
-    // get power1 from throughput
-    uint64_t throughput = xqc_get_CCA_info_sample(stream_CCA_info, XQC_CCA_INFO_SAMPLE_THROUGHPUT);
-    uint64_t max_throughput = 240000000;
-    float power1 = 0, power4 = 0;
-    if (max_throughput)
-    {
-        // xqc_set_CCA_info_thres(stream_CCA_info, XQC_CCA_INFO_TRACE_THROUGHPUT, 240000000 * 0.5);
-        power1 = (throughput * 1.0) / (max_throughput * 1.0);
-    }
+    float power4 = 0;
     // get power4 from delivery rate
     uint64_t delivary_rate = xqc_get_CCA_info_sample(stream_CCA_info, XQC_CCA_INFO_SAMPLE_DELIVERY_RATE);
-    uint64_t max_delivary_rate = 1467598;
-    if (max_delivary_rate)
-    {
-        // xqc_set_CCA_info_thres(stream_CCA_info, XQC_CCA_INFO_TRACE_DELIVERY_RATE, max_delivary_rate * 0.6);
-        power4 = (delivary_rate * 1.0) / (max_delivary_rate * 1.0);
-    }
-    uint64_t now_ = now();
-    if (now_ - time_ > TRIGGER)
-    {
-        power4 = 1;
-    }
+    
+    power4 = (delivary_rate * 1.0) / (max_delivary_rate * 1.0);
     return power4;
 }
 
-float xqc_CCA_switching_get_metric_cwnd_down(xqc_stream_CCA_info_t *stream_CCA_info)
+float cs_metric_cwnd_up_thres(xqc_stream_CCA_info_t *stream_CCA_info)
 {
-    float power2 = 0, power3 = 0;
-    // get power2 from loss_rate
-    uint64_t loss_rate = xqc_get_CCA_info_sample(stream_CCA_info, XQC_CCA_INFO_SAMPLE_LOSS_RATE);
-    power2 = 1 - (loss_rate * 1.0 / 10000000);
-    // set thres for loss rate
-    // xqc_set_CCA_info_thres(stream_CCA_info, XQC_CCA_INFO_TRACE_LOSS_RATE, 0.05 * 10000000);
+    uint64_t now_ = now();
+    float thres = 0.8;
+    return thres;
+}
+
+float cs_metric_cwnd_down(xqc_stream_CCA_info_t *stream_CCA_info) {
+    float power3 = 0;
     // get power3 from rtt
     uint64_t latest_rtt = xqc_get_CCA_info_sample(stream_CCA_info, XQC_CCA_INFO_SAMPLE_LATEST_RTT);
     uint64_t min_rtt = xqc_get_CCA_info_sample(stream_CCA_info, XQC_CCA_INFO_SAMPLE_MIN_RTT);
-    if (min_rtt)
-    {
+    if (min_rtt) {
         power3 = (min_rtt * 1.0) / (latest_rtt * 1.0);
     }
-    // set thres for rtt
-    if (min_rtt + 2500 <= latest_rtt)
-    {
-        // xqc_set_CCA_info_thres(stream_CCA_info, XQC_CCA_INFO_TRACE_RTT, min_rtt + 35000);
-    }
-    if (power3 > 1)
-    {
+    if (power3 > 1) {
         power3 = 1;
     }
     uint64_t now_ = now();
-    if (now_ - time_ > TRIGGER)
-    {
-        if (flag_ == 0)
-            xqc_notice_CCA_info_metric_calc_change(stream_CCA_info, "[from throughput sensitive to delay sensitive]");
-        flag_ = 1;
-    }
-    else
-    {
-        power3 = 1;
-    }
-    // return 0 * power3 + 1 * power2;
     return power3;
 }
 
-float xqc_CCA_switching_get_metric_ip_info(xqc_ip_CCA_info_t *CCA_info, int index)
+float cs_metric_cwnd_down_thres(xqc_stream_CCA_info_t *stream_CCA_info)
 {
+    uint64_t min_rtt = xqc_get_CCA_info_sample(stream_CCA_info, XQC_CCA_INFO_SAMPLE_MIN_RTT);
+    uint64_t now_ = now();
+    float thres = 0;
+    thres = (float)(min_rtt) / (float)(min_rtt + 100000);
+    return thres;
+}
+
+float cs_metric_ip_info(xqc_ip_CCA_info_t *CCA_info, int index) {
     float metric_ip_info = 2;
-    time_ = now();
     // uint64_t CCA_cnt_sum = 0;
     // for (size_t i = 0; i < XQC_CCA_NUM; i++)
     // {
@@ -827,9 +785,13 @@ float xqc_CCA_switching_get_metric_ip_info(xqc_ip_CCA_info_t *CCA_info, int inde
     return metric_ip_info;
 }
 
-float xqc_CCA_switching_get_metric_sum_up(float metric_cwnd_up, float metric_cwnd_down, float metric_ip_info)
-{
+float cs_metric_sum_up(float metric_cwnd_up, float metric_cwnd_down, float metric_ip_info) {
+    uint64_t now_ = now();
     return 1 * metric_cwnd_up + 1 * metric_cwnd_down + metric_ip_info;
+}
+
+void cs_metric_free_resource() {
+    
 }
 
 /**
@@ -4796,7 +4758,7 @@ int main(int argc, char *argv[])
         {0, 0, 0, 0}};
 
     int ch = 0;
-    while ((ch = getopt_long(argc, argv, "a:p:P:n:c:Ct:T:1s:w:r:l:Ed:u:H:h:Gx:6NMR:i:V:q:o:fe:F:D:b:B:J:Q:U:AyzY", long_opts, NULL)) != -1)
+    while ((ch = getopt_long(argc, argv, "a:p:P:n:c:Ct:T:1s:w:r:l:Ed:u:H:h:Gx:6NMR:i:V:q:o:fe:F:D:b:B:J:Q:U:AyzYT:k:", long_opts, NULL)) != -1)
     {
         switch (ch)
         {
@@ -4834,7 +4796,7 @@ int main(int argc, char *argv[])
             printf("option req_max :%s\n", optarg);
             g_req_max = atoi(optarg);
             break;
-        case 'c': /* Congestion Control Algorithm. r:reno b:bbr c:cubic B:bbr2 bbr+ bbr2+ S:pcc scavenger */
+        case 'c': /* Congestion Control Algorithm. r:reno b:bbr c:cubic B:bbr2 bbr+ bbr2+ */
             c_cong_ctl = optarg[0];
             if (strncmp("bbr2", optarg, 4) == 0)
             {
@@ -5194,10 +5156,6 @@ int main(int argc, char *argv[])
         init_cong_ctrl = XQC_COPA;
         cong_ctrl = xqc_copa_cb;
     }
-    // else if (c_cong_ctl == 'S') {
-    //     init_cong_ctrl = XQC_PCC;
-    //     cong_ctrl = xqc_pcc_proteus_cb;
-    // }
     else
     {
         printf("unknown cong_ctrl, option is b, r, c, B, bbr+, bbr2+, u\n");
@@ -5216,7 +5174,6 @@ int main(int argc, char *argv[])
             .cc_optimization_flags = cong_flags,
             .copa_delta_ai_unit = g_copa_ai,
             .copa_delta_base = g_copa_delta,
-            .scavenger_param = 0.0015,
         },
         .spurious_loss_detect_on = 0,
         .keyupdate_pkt_threshold = 0,
@@ -5262,18 +5219,20 @@ int main(int argc, char *argv[])
         conn_settings.datagram_redundant_probe = 30000;
     }
 
+    conn_settings.metric_cwnd_down_cb = cs_metric_cwnd_down;
+    conn_settings.metric_cwnd_up_cb = cs_metric_cwnd_up;
+    conn_settings.metric_cwnd_down_thres_cb = cs_metric_cwnd_down_thres;
+    conn_settings.metric_cwnd_up_thres_cb = cs_metric_cwnd_up_thres;
+    conn_settings.metric_cwnd_ip_info_cb = cs_metric_ip_info;
+    conn_settings.metric_cwnd_sum_up_cb = cs_metric_sum_up;
+    conn_settings.metric_free_resource_cb = cs_metric_free_resource;
+    conn_settings.enable_CCA_switching = g_enable_CCA_switching;
     // added by qnwang for AR
     conn_settings.expected_time = (xqc_msec_t)g_expected_time;
 
-    conn_settings.metric_cwnd_down_cb = xqc_CCA_switching_get_metric_cwnd_down;
-    conn_settings.metric_cwnd_up_cb = xqc_CCA_switching_get_metric_cwnd_up;
-    conn_settings.metric_cwnd_ip_info_cb = xqc_CCA_switching_get_metric_ip_info;
-    conn_settings.metric_cwnd_sum_up_cb = xqc_CCA_switching_get_metric_sum_up;
-
-    conn_settings.enable_CCA_switching = g_enable_CCA_switching;
-
     g_conn_settings = &conn_settings;
 
+    xqc_config_t config;
     if (xqc_engine_get_default_config(&config, XQC_ENGINE_CLIENT) < 0)
     {
         return -1;
@@ -5306,7 +5265,10 @@ int main(int argc, char *argv[])
     }
 
     /* test different cid_len */
-    config.cid_len = XQC_MAX_CID_LEN;
+    if (g_test_case == 13)
+    {
+        config.cid_len = XQC_MAX_CID_LEN;
+    }
 
     /* check draft-29 version */
     if (g_test_case == 17)
@@ -5315,8 +5277,13 @@ int main(int argc, char *argv[])
     }
 
 #if defined(XQC_SUPPORT_SENDMMSG)
-    if (g_test_case == 20) /* test sendmmsg */
+    if (g_test_case == 20)
+    { /* test sendmmsg */
+        printf("test sendmmsg!\n");
+        tcbs.write_mmsg = xqc_client_write_mmsg;
+        tcbs.write_mmsg_ex = xqc_client_mp_write_mmsg;
         config.sendmmsg_on = 1;
+    }
 #endif
 
     if (g_test_case == 24)
@@ -5647,6 +5614,7 @@ int main(int argc, char *argv[])
                 xqc_client_request_send(user_stream->h3_request, user_stream);
             }
         }
+
         // open bytestreams and send data
         for (int i = 0; i < g_req_paral; i++)
         {

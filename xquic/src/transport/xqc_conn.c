@@ -1132,6 +1132,7 @@ void xqc_conn_destroy(xqc_connection_t *xc)
 
     xqc_log_release(xc->log);
     xqc_extra_log_release(xc->CS_extra_log);
+    xqc_extra_log_release(xc->AR_extra_log);
 
     /* free pool, must be the last thing to do */
     if (xc->conn_pool)
@@ -2002,7 +2003,8 @@ xqc_send_packet_with_pn(xqc_connection_t *conn, xqc_path_ctx_t *path, xqc_packet
     /* record the send time of packet */
     xqc_usec_t now = xqc_monotonic_timestamp();
     packet_out->po_sent_time = now;
-
+    // , conn->conn_type
+    const char *conn_type[] = {"XQC_CONN_TYPE_CLIENT", "XQC_CONN_TYPE_SERVER"};
     /* send data */
     ssize_t sent = xqc_send(conn, path, conn->enc_pkt, conn->enc_pkt_len);
     if (sent != conn->enc_pkt_len)
@@ -2023,8 +2025,9 @@ xqc_send_packet_with_pn(xqc_connection_t *conn, xqc_path_ctx_t *path, xqc_packet
                 xqc_frame_type_2_str(packet_out->po_frame_types), path->path_send_ctl->ctl_bytes_in_flight, now, packet_out->po_stream_id, packet_out->po_stream_offset);
         xqc_log_event(conn->log, TRA_PACKET_SENT, packet_out);
     }
+    xqc_log(conn->log, XQC_LOG_DEBUG, "|hello");
     xqc_extra_log(conn->log, conn->AR_extra_log, "[send_pn pkt_num:%ui] [eng_type:%s]", packet_out->po_pkt.pkt_num, conn_type[conn->conn_type]);
-
+    xqc_log(conn->log, XQC_LOG_DEBUG, "|hello1");
     // added by qnwang for AR
     if (conn->active_retrans->flag == XQC_TRUE)
     {
@@ -3764,9 +3767,13 @@ void xqc_conn_server_validate_address(xqc_connection_t *c, xqc_packet_in_t *pi)
         break;
     }
 
-    /*
-*loss detection timer might be unset when anti - amplification limit is reached, but receiving *a handshake or receiving a packet with cid which was choosed by server, will remove the *anti - amplification state, and loss detection timer shall be re - armed.* / if (c->conn_flag & XQC_CONN_FLAG_ADDR_VALIDATED)
-{
+  /*
+     * loss detection timer might be unset when anti-amplification limit is reached, but receiving
+     * a handshake or receiving a packet with cid which was choosed by server, will remove the
+     * anti-amplification state, and loss detection timer shall be re-armed.
+     */
+    if (c->conn_flag & XQC_CONN_FLAG_ADDR_VALIDATED)
+    {
         xqc_send_ctl_rearm_ld_timer(c->conn_initial_path->path_send_ctl);
     }
 }
@@ -4374,11 +4381,13 @@ xqc_conn_reassemble_packet(xqc_connection_t *conn, xqc_packet_out_t *ori_po)
 
     if (new_po->po_frame_types & XQC_FRAME_BIT_CRYPTO)
     {
-
-        xqc_log(conn->log, XQC_LOG_DEBUG,
-                new_po->po_pkt.pkt_num, new_po->po_pkt.pkt_type,
-                xqc_frame_type_2_str(new_po->po_frame_types));
+        xqc_send_queue_move_to_high_pri(&new_po->po_list, conn->conn_send_queue);
     }
+
+    xqc_log(conn->log, XQC_LOG_DEBUG,
+            "|pkt_num:%ui|ptype:%d|frames:%s|",
+            new_po->po_pkt.pkt_num, new_po->po_pkt.pkt_type,
+            xqc_frame_type_2_str(new_po->po_frame_types));
 
     return XQC_OK;
 }
@@ -4612,28 +4621,29 @@ xqc_conn_check_transport_params(xqc_connection_t *conn, const xqc_transport_para
     if (conn->conn_type == XQC_CONN_TYPE_SERVER)
     {
         /* server MUST NOT received server-only parameters from client */
+        if (params->original_dest_connection_id_present || params->preferred_address_present || params->retry_source_connection_id_present || params->stateless_reset_token_present)
         {
             return -XQC_TLS_TRANSPORT_PARAM;
         }
+    }
 
-        if (conn->conn_type == XQC_CONN_TYPE_CLIENT)
+    if (conn->conn_type == XQC_CONN_TYPE_CLIENT)
+    {
+        /* check retry_source_connection_id parameter if recv retry packet */
+        if (conn->conn_flag & XQC_CONN_FLAG_RETRY_RECVD)
         {
-            /* check retry_source_connection_id parameter if recv retry packet */
-            if (conn->conn_flag & XQC_CONN_FLAG_RETRY_RECVD)
-            {
-                if (!params->retry_source_connection_id_present)
-                {
-                    return -XQC_TLS_TRANSPORT_PARAM;
-                }
-            }
-            else if (params->retry_source_connection_id_present)
+            if (!params->retry_source_connection_id_present)
             {
                 return -XQC_TLS_TRANSPORT_PARAM;
             }
         }
-
-        return XQC_OK;
+        else if (params->retry_source_connection_id_present)
+        {
+            return -XQC_TLS_TRANSPORT_PARAM;
+        }
     }
+
+    return XQC_OK;
 }
 
 void xqc_conn_tls_transport_params_cb(const uint8_t *tp, size_t len, void *user_data)

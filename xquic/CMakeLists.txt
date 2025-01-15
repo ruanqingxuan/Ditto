@@ -169,6 +169,7 @@ set(
 # Transport source
 set(
     TRANSPORT_SOURCES
+    "src/transport/xqc_active_retrans.c"
     "src/transport/xqc_engine.c"
     "src/transport/xqc_extra_sample.c"
     "src/transport/xqc_CCA_info_container.c"

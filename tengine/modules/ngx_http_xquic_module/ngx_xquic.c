@@ -187,29 +187,21 @@ xqc_server_load_CCA_param(xqc_CCA_info_container_t *container, const char* file)
     xmlNodePtr cur;
     /* for 1-level node, parsing the ip, port and interface. */
     xmlChar *addr;
-    // xmlChar *if_;
     /* for 2-level node, parsing the different CCA. */
-    // xmlChar *id;
-
-    /* get the tree. */
     doc = xmlReadFile(file, NULL, 0);
     if (doc == NULL) {
         goto FAILED;
     }
-
-    /* get the root. */
     cur = xmlDocGetRootElement(doc);
     if (cur == NULL) {
         goto FAILED;
     }
-
     if (xmlStrcmp(cur->name, IPCONF_) != 0) {
         goto FAILED;
     }
-
-    /* traverse all the node. */
-    cur = cur->children;
     /* traverse by ip+port */
+     cur = cur->children;
+     /* traverse by ip+port */
     while (cur != NULL) {
         if (xmlStrcmp(cur->name, CONF_) == 0) {
             addr = xmlGetProp(cur, ADDR);
@@ -353,6 +345,52 @@ FAILED:
     return -1;
 }
 
+// AR里加入的
+float xqc_CCA_switching_get_metric(xqc_stream_CCA_info_t *CCA_sampler, xqc_ip_CCA_info_t *CCA_info, int index)
+{
+    // get power1 from throughput
+    uint64_t throughput = xqc_get_CCA_info_sample(CCA_sampler, XQC_CCA_INFO_SAMPLE_THROUGHPUT);
+    uint64_t max_throughput = xqc_get_CCA_info_sample(CCA_sampler, XQC_CCA_INFO_SAMPLE_MAX_THROUGHPUT);
+    float power1, power2, power3, power4;
+    if (max_throughput)
+    {
+        power1 = (throughput * 1.0) / (max_throughput * 1.0);
+    }
+    else
+    {
+        power1 = 0;
+    }
+    // get power2 from loss_rate
+    uint64_t loss_rate = xqc_get_CCA_info_sample(CCA_sampler, XQC_CCA_INFO_SAMPLE_LOSS_RATE);
+    power2 = 1 - (loss_rate * 1.0 / 1000);
+    // get power3 from rtt
+    uint64_t latest_rtt = xqc_get_CCA_info_sample(CCA_sampler, XQC_CCA_INFO_SAMPLE_LATEST_RTT);
+    uint64_t min_rtt = xqc_get_CCA_info_sample(CCA_sampler, XQC_CCA_INFO_SAMPLE_MIN_RTT);
+    if (min_rtt)
+    {
+        power3 = (min_rtt * 1.0) / (latest_rtt * 1.0);
+    }
+    else
+    {
+        power3 = 0;
+    }
+    // get power4 from ip info
+    uint64_t CCA_cnt_sum = 0;
+    for (size_t i = 0; i < XQC_CCA_NUM; i++)
+    {
+        CCA_cnt_sum += CCA_info[i].CCA_cnt;
+    }
+    if (CCA_cnt_sum)
+    {
+        power4 = (CCA_info[index].CCA_cnt * 1.0) / (CCA_cnt_sum * 1.0);
+    }
+    else
+    {
+        power4 = 0;
+    }
+    // get metric
+    return 0 * power4 + 1 * power1 + 0 * power2 + 0 * power3;
+}
 /**
  * @brief at this line, upper functions are added by jndu for CCA switching
  */
@@ -455,7 +493,6 @@ ngx_xquic_engine_set_event_timer(xqc_msec_t wake_after, void *engine_user_data)
     // 添加新的定时器，触发时间为 wake_after_ms 毫秒后
     ngx_add_timer(&(qmcf->engine_ev_timer), wake_after_ms);
 }
-
 
 ngx_int_t
 ngx_xquic_engine_init_alpn_ctx(ngx_cycle_t *cycle, xqc_engine_t *engine)
@@ -647,12 +684,12 @@ ngx_xquic_engine_init(ngx_cycle_t *cycle)
         cong_ctrl = xqc_bbr_cb;
         init_ctrl = XQC_BBR;
     } 
-    // else if (qmcf->congestion_control.len == sizeof("reno")-1
-    //     && ngx_strncmp(qmcf->congestion_control.data, "reno", sizeof("reno")-1) == 0) 
-    // {
-    //     cong_ctrl = xqc_reno_cb;
-    //     init_ctrl = XQC_NEW_RENO;
-    // } 
+    else if (qmcf->congestion_control.len == sizeof("reno")-1
+        && ngx_strncmp(qmcf->congestion_control.data, "reno", sizeof("reno")-1) == 0) 
+    {
+        cong_ctrl = xqc_reno_cb;
+        init_ctrl = XQC_NEW_RENO;
+    } 
     else if (qmcf->congestion_control.len == sizeof("copa")-1
         && ngx_strncmp(qmcf->congestion_control.data, "copa", sizeof("copa")-1) == 0) 
     {
@@ -691,6 +728,8 @@ ngx_xquic_engine_init(ngx_cycle_t *cycle)
         .enable_CCA_switching = enable_CS,
         .can_use_coward = qmcf->can_use_coward,
         .init_cong_ctrl = init_ctrl,
+        .metric_cb = xqc_CCA_switching_get_metric,
+        conn_settings.expected_time = 5,
     };
     
     if (enable_CS) {
@@ -768,8 +807,15 @@ ngx_xquic_engine_init(ngx_cycle_t *cycle)
         conn_settings.metric_notice_can_evaluate_cb = metric_notice_can_evaluate;
     }
 
+    // added by qnwang for AR
+    if (qmcf->ditto_expected_time != NGX_CONF_UNSET_UINT)
+    {
+        conn_settings.expected_time = (xqc_msec_t)qmcf->ditto_expected_time;
+    }
+
     // 如果配置了 anti_amplification_limit，设置到连接参数中
-    if (qmcf->anti_amplification_limit != NGX_CONF_UNSET_UINT) {
+    if (qmcf->anti_amplification_limit != NGX_CONF_UNSET_UINT)
+    {
         conn_settings.anti_amplification_limit = qmcf->anti_amplification_limit;
     }
 
@@ -947,7 +993,6 @@ ngx_xquic_log_write_stat(xqc_log_level_t lvl, const void *buf, size_t size, void
 {
     ngx_log_xquic(NGX_LOG_WARN, ngx_cycle->x_log, 0, "%*s|", size, buf);
 }
-
 
 #if (NGX_XQUIC_SUPPORT_CID_ROUTE)
 

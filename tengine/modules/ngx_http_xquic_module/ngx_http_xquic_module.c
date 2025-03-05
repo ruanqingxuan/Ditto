@@ -61,7 +61,6 @@ static ngx_int_t ngx_http_xquic_init(ngx_conf_t *cf);
 static ngx_int_t ngx_http_xquic_access_handler(ngx_http_request_t *r);
 static char * ngx_http_set_xquic_status(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
-
 ngx_http_xquic_main_conf_t *ngx_http_xquic_main_conf = NULL;
 
 
@@ -260,6 +259,13 @@ static ngx_command_t  ngx_http_xquic_commands[] = {
       offsetof(ngx_http_xquic_main_conf_t, anti_amplification_limit),
       NULL },
 
+    {ngx_string("xquic_ditto_expected_time"),
+        NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
+        ngx_conf_set_num_slot,
+        NGX_HTTP_MAIN_CONF_OFFSET,
+        offsetof(ngx_http_xquic_main_conf_t, ditto_expected_time),
+        NULL},
+   
     { ngx_string("xquic_keyupdate_pkt_threshold"),
       NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_num_slot,
@@ -337,7 +343,8 @@ ngx_http_xquic_variable(ngx_http_request_t *r,
 {
     v->not_found = 1;
 
-    if (r->xqstream) {
+    if (r->xqstream)
+    {
         v->len = sizeof("xquic") - 1;
         v->valid = 1;
         v->no_cacheable = 0;
@@ -475,7 +482,6 @@ ngx_http_xquic_add_variables(ngx_conf_t *cf)
     return NGX_OK;
 }
 
-
 static char *
 ngx_http_xquic_streams_index_mask(ngx_conf_t *cf, void *post, void *data) // 确保配置项的值是2的幂次方-1
 {
@@ -572,6 +578,8 @@ ngx_http_xquic_create_main_conf(ngx_conf_t *cf) //创建主要配置
     qmcf->can_use_coward = NGX_CONF_UNSET_UINT;
     qmcf->metric_cb_handle    = NULL;
 
+    // added by qnwang for AR
+    qmcf->ditto_expected_time = NGX_CONF_UNSET_UINT;
     ngx_http_xquic_main_conf = qmcf;
 
     return qmcf;

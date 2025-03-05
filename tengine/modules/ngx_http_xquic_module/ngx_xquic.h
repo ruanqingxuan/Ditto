@@ -67,6 +67,7 @@ xqc_int_t xqc_server_load_CCA_info(xmlDocPtr doc, xmlNodePtr cur, xqc_ip_CCA_inf
 xqc_int_t xqc_server_load_CCA_param(xqc_CCA_info_container_t *container, const char* file);
 xqc_int_t xqc_server_save_CCA_info(xmlNodePtr ip_node, xqc_ip_CCA_info_t **mp_map);
 xqc_int_t xqc_server_save_CCA_param(xqc_CCA_info_container_t *container, const char* file);
+float xqc_CCA_switching_get_metric(xqc_stream_CCA_info_t *CCA_sampler, xqc_ip_CCA_info_t *CCA_info, int index);
 
 
 #if (NGX_XQUIC_SUPPORT_CID_ROUTE)

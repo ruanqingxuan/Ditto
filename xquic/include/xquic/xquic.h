@@ -1376,6 +1376,9 @@ typedef struct xqc_conn_settings_s {
     xqc_notice_metric_can_evaluate metric_notice_can_evaluate_cb;
     uint8_t                     enable_CCA_switching;
     uint8_t                     can_use_coward;
+
+    /* added by qnwang for Active Retran */
+    xqc_msec_t                  expected_time;
 } xqc_conn_settings_t;
 
 

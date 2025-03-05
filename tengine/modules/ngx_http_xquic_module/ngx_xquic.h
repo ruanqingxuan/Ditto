@@ -15,14 +15,27 @@
 #include <xquic/xquic_typedef.h>
 #include <xquic/xquic.h>
 
+/* added by jndu */
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
+#include <dlfcn.h>
+
 
 #define NGX_HTTP_V3_INT_OCTETS           4
 #define NGX_HTTP_V3_MAX_FIELD                                                 \
     (127 + (1 << (NGX_HTTP_V3_INT_OCTETS - 1) * 7) - 1)
 
 #define NGX_XQUIC_SUPPORT_CID_ROUTE 1
+
+/* added by jndu */
+#define NGX_XQUIC_CS_METRIC_CWND_UP "cs_metric_cwnd_up"
+#define NGX_XQUIC_CS_METRIC_CWND_DOWN "cs_metric_cwnd_down"
+#define NGX_XQUIC_CS_METRIC_IP_INFO "cs_metric_ip_info"
+#define NGX_XQUIC_CS_METRIC_SUM_UP "cs_metric_sum_up"
+#define NGX_XQUIC_CS_METRIC_FREE_RSC "cs_metric_free_resource"
+#define NGX_XQUIC_CS_METRIC_CWND_UP_THRES "cs_metric_cwnd_up_thres"
+#define NGX_XQUIC_CS_METRIC_CWND_DOWN_THRES "cs_metric_cwnd_down_thres"
+#define NGX_XQUIC_CS_METRIC_NOTICE_CAN_EVALUATE "cs_metric_notice_can_evaluate"
 
 int ngx_xquic_conn_accept(xqc_engine_t *engine, xqc_connection_t *conn, 
     const xqc_cid_t * cid, void * user_data);
@@ -54,7 +67,6 @@ xqc_int_t xqc_server_load_CCA_info(xmlDocPtr doc, xmlNodePtr cur, xqc_ip_CCA_inf
 xqc_int_t xqc_server_load_CCA_param(xqc_CCA_info_container_t *container, const char* file);
 xqc_int_t xqc_server_save_CCA_info(xmlNodePtr ip_node, xqc_ip_CCA_info_t **mp_map);
 xqc_int_t xqc_server_save_CCA_param(xqc_CCA_info_container_t *container, const char* file);
-float xqc_CCA_switching_get_metric(xqc_stream_CCA_info_t *CCA_sampler, xqc_ip_CCA_info_t *CCA_info, int index);
 
 
 #if (NGX_XQUIC_SUPPORT_CID_ROUTE)

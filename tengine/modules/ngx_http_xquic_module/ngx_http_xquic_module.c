@@ -5,333 +5,361 @@
 #include <ngx_http_xquic_module.h>
 #include <ngx_xquic.h>
 
+
 #define NGX_XQUIC_DEFAULT_DOMAIN_SOCKET_PATH "/dev/shm/tengine/xquic"
 
-#define NGX_XQUIC_LOG_REPORT 0
-#define NGX_XQUIC_LOG_FATAL 1
-#define NGX_XQUIC_LOG_ERROR 2
-#define NGX_XQUIC_LOG_WARN 3
-#define NGX_XQUIC_LOG_STATS 4
-#define NGX_XQUIC_LOG_INFO 5
-#define NGX_XQUIC_LOG_DEBUG 6
+
+#define NGX_XQUIC_LOG_REPORT    0
+#define NGX_XQUIC_LOG_FATAL     1
+#define NGX_XQUIC_LOG_ERROR     2
+#define NGX_XQUIC_LOG_WARN      3
+#define NGX_XQUIC_LOG_STATS     4
+#define NGX_XQUIC_LOG_INFO      5
+#define NGX_XQUIC_LOG_DEBUG     6
+
 
 typedef ngx_int_t (*ngx_ssl_variable_handler_pt)(SSL *ssl,
-                                                 ngx_pool_t *pool, ngx_str_t *s);
+    ngx_pool_t *pool, ngx_str_t *s);
+
 
 static ngx_str_t ngx_xquic_log_levels[] = {
-    ngx_string("report"),
+    ngx_string("report"),  
     ngx_string("fatal"),
     ngx_string("error"),
     ngx_string("warn"),
-    ngx_string("stats"),
+    ngx_string("stats"),    
     ngx_string("info"),
     ngx_string("debug"),
-    ngx_null_string};
+    ngx_null_string
+};
+
 
 static ngx_int_t ngx_http_xquic_variable(ngx_http_request_t *r,
-                                         ngx_http_variable_value_t *v, uintptr_t data);
+    ngx_http_variable_value_t *v, uintptr_t data);
 static void ngx_http_xquic_off_set_variable(ngx_http_request_t *r,
-                                            ngx_http_variable_value_t *v, uintptr_t data);
+    ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_xquic_off_get_variable(ngx_http_request_t *r,
-                                                 ngx_http_variable_value_t *v, uintptr_t data);
+    ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_xquic_connection_id_variable(ngx_http_request_t *r,
-                                                       ngx_http_variable_value_t *v, uintptr_t data);
+    ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_xquic_stream_id_variable(ngx_http_request_t *r,
-                                                   ngx_http_variable_value_t *v, uintptr_t data);
+    ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_xquic_ssl_static_variable(ngx_http_request_t *r,
-                                               ngx_http_variable_value_t *v, uintptr_t data);
+    ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_xquic_ssl_variable(ngx_http_request_t *r,
-                                        ngx_http_variable_value_t *v, uintptr_t data);
+    ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_xquic_add_variables(ngx_conf_t *cf);
-static char *ngx_http_xquic_streams_index_mask(ngx_conf_t *cf, void *post, void *data);
-static char *ngx_http_xquic_set_log_level(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-static void *ngx_http_xquic_create_main_conf(ngx_conf_t *cf);
-static char *ngx_http_xquic_init_main_conf(ngx_conf_t *cf, void *conf);
-static void *ngx_http_xquic_create_srv_conf(ngx_conf_t *cf);
-static char *ngx_http_xquic_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child);
+static char * ngx_http_xquic_streams_index_mask(ngx_conf_t *cf, void *post, void *data);
+static char * ngx_http_xquic_set_log_level(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+static void * ngx_http_xquic_create_main_conf(ngx_conf_t *cf);
+static char * ngx_http_xquic_init_main_conf(ngx_conf_t *cf, void *conf);
+static void * ngx_http_xquic_create_srv_conf(ngx_conf_t *cf);
+static char * ngx_http_xquic_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child);
 static ngx_int_t ngx_http_xquic_process_init(ngx_cycle_t *cycle);
 static void ngx_http_xquic_process_exit(ngx_cycle_t *cycle);
 static ngx_int_t ngx_http_xquic_init(ngx_conf_t *cf);
 static ngx_int_t ngx_http_xquic_access_handler(ngx_http_request_t *r);
-static char *ngx_http_set_xquic_status(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+static char * ngx_http_set_xquic_status(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+
 
 ngx_http_xquic_main_conf_t *ngx_http_xquic_main_conf = NULL;
 
-static ngx_conf_post_t ngx_http_xquic_streams_index_mask_post =
-    {ngx_http_xquic_streams_index_mask};
+
+static ngx_conf_post_t  ngx_http_xquic_streams_index_mask_post =
+    { ngx_http_xquic_streams_index_mask };
+
 
 // 存储ngx_http_xquic模块的配置指令
-static ngx_command_t ngx_http_xquic_commands[] = {
+static ngx_command_t  ngx_http_xquic_commands[] = {
 
-    {ngx_string("xquic_ssl_certificate"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_str_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, certificate),
-     NULL},
+    /* added by jndu */
+    {  ngx_string("xquic_can_use_coward"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, can_use_coward),
+      NULL},
+    /* added by jndu */
+    { ngx_string("xquic_enable_CS"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, enable_CS),
+      NULL},
 
-    {ngx_string("xquic_ssl_certificate_key"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_str_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, certificate_key),
-     NULL},
+    /* added by jndu */
+    { ngx_string("xquic_CS_metric_func_file"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, CS_metric_func_path),
+      NULL},
 
-    {ngx_string("xquic_ssl_session_ticket_key"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_str_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, session_ticket_key),
-     NULL},
+    { ngx_string("xquic_ssl_certificate"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, certificate),
+      NULL },
 
-    {ngx_string("xquic_stateless_reset_token_key"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_str_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, stateless_reset_token_key),
-     NULL},
+    { ngx_string("xquic_ssl_certificate_key"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, certificate_key),
+      NULL },
+      
+    { ngx_string("xquic_ssl_session_ticket_key"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, session_ticket_key),
+      NULL },
 
-    {ngx_string("xquic_log_file"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_str_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, log_file_path),
-     NULL},
+    { ngx_string("xquic_stateless_reset_token_key"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, stateless_reset_token_key),
+      NULL },
 
-    {ngx_string("xquic_use_new_udp_hash"),
-     NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_CONF_FLAG,
-     ngx_conf_set_flag_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, new_udp_hash),
-     NULL},
+    { ngx_string("xquic_log_file"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, log_file_path),
+      NULL },
 
-    {ngx_string("xquic_log_level"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_http_xquic_set_log_level,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, log_level),
-     NULL},
+    { ngx_string("xquic_use_new_udp_hash"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, new_udp_hash),
+      NULL },
 
-    {ngx_string("xquic_socket_sndbuf"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_num_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, socket_sndbuf),
-     NULL},
+    { ngx_string("xquic_log_level"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_http_xquic_set_log_level,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, log_level),
+      NULL },
 
-    {ngx_string("xquic_qpack_encoder_dynamic_table_size"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_size_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, qpack_encoder_dynamic_table_capacity),
-     NULL},
+    { ngx_string("xquic_socket_sndbuf"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, socket_sndbuf),
+      NULL },
 
-    {ngx_string("xquic_qpack_decoder_dynamic_table_size"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_size_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, qpack_decoder_dynamic_table_capacity),
-     NULL},
+    { ngx_string("xquic_qpack_encoder_dynamic_table_size"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, qpack_encoder_dynamic_table_capacity),
+      NULL },
 
-    {ngx_string("xquic_socket_rcvbuf"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_num_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, socket_rcvbuf),
-     NULL},
+    { ngx_string("xquic_qpack_decoder_dynamic_table_size"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, qpack_decoder_dynamic_table_capacity),
+      NULL },
 
-    {ngx_string("xquic_congestion_control"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_str_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, congestion_control),
-     NULL},
+    { ngx_string("xquic_socket_rcvbuf"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, socket_rcvbuf),
+      NULL },
 
-    {ngx_string("xquic_pacing"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_flag_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, pacing_on),
-     NULL},
+    { ngx_string("xquic_congestion_control"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, congestion_control),
+      NULL },
 
-    {ngx_string("xquic_streams_index_size"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_num_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, streams_index_mask),
-     &ngx_http_xquic_streams_index_mask_post},
+    { ngx_string("xquic_pacing"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, pacing_on),
+      NULL },
+
+    { ngx_string("xquic_streams_index_size"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, streams_index_mask),
+      &ngx_http_xquic_streams_index_mask_post },
 
 #if (NGX_XQUIC_SUPPORT_CID_ROUTE)
 
-    {ngx_string("xquic_cid_route"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_flag_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, cid_route),
-     NULL},
+    { ngx_string("xquic_cid_route"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, cid_route),
+      NULL },
 
-    {ngx_string("xquic_server_id_offset"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_num_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, cid_server_id_offset),
-     NULL},
+    { ngx_string("xquic_server_id_offset"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, cid_server_id_offset),
+      NULL },
 
-    {ngx_string("xquic_server_id_length"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_num_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, cid_server_id_length),
-     NULL},
+    { ngx_string("xquic_server_id_length"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, cid_server_id_length),
+      NULL },
 
-    {ngx_string("xquic_worker_id_offset"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_num_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, cid_worker_id_offset),
-     NULL},
+    { ngx_string("xquic_worker_id_offset"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, cid_worker_id_offset),
+      NULL },
 
 #endif
 
-    {ngx_string("xquic_max_concurrent_connection_cnt"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_num_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, max_quic_concurrent_connection_cnt),
-     NULL},
+    { ngx_string("xquic_max_concurrent_connection_cnt"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, max_quic_concurrent_connection_cnt),
+      NULL },
 
-    {ngx_string("xquic_max_cps"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_num_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, max_quic_cps),
-     NULL},
+    { ngx_string("xquic_max_cps"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, max_quic_cps),
+      NULL },
 
-    {ngx_string("xquic_max_qps"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_num_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, max_quic_qps),
-     NULL},
+    { ngx_string("xquic_max_qps"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, max_quic_qps),
+      NULL },
 
-    {ngx_string("xquic_status"),
-     NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_NOARGS | NGX_CONF_TAKE1,
-     ngx_http_set_xquic_status,
-     0,
-     0,
-     NULL},
+    { ngx_string("xquic_status"),
+      NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_NOARGS|NGX_CONF_TAKE1,
+      ngx_http_set_xquic_status,
+      0,
+      0,
+      NULL },
 
-    {ngx_string("xquic_anti_amplification_limit"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_num_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, anti_amplification_limit),
-     NULL},
+    { ngx_string("xquic_anti_amplification_limit"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, anti_amplification_limit),
+      NULL },
 
-    {ngx_string("xquic_ditto_expected_time"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_num_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, ditto_expected_time),
-     NULL},
+    { ngx_string("xquic_keyupdate_pkt_threshold"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_xquic_main_conf_t, keyupdate_pkt_threshold),
+      NULL },
 
-    {ngx_string("xquic_keyupdate_pkt_threshold"),
-     NGX_HTTP_MAIN_CONF | NGX_CONF_TAKE1,
-     ngx_conf_set_num_slot,
-     NGX_HTTP_MAIN_CONF_OFFSET,
-     offsetof(ngx_http_xquic_main_conf_t, keyupdate_pkt_threshold),
-     NULL},
-
-    ngx_null_command};
-
-static ngx_http_module_t ngx_http_xquic_module_ctx = {
-    ngx_http_xquic_add_variables, /* preconfiguration 预配置 */
-    ngx_http_xquic_init,          /* postconfiguration 配置后 */
-
-    ngx_http_xquic_create_main_conf, /* create main configuration 创建主要配置*/
-    ngx_http_xquic_init_main_conf,   /* init main configuration 初始化主要配置*/
-
-    ngx_http_xquic_create_srv_conf, /* create server configuration 创建服务器配置*/
-    ngx_http_xquic_merge_srv_conf,  /* merge server configuration 合并服务器配置*/
-
-    NULL, /* create location configuration 创建位置配置*/
-    NULL  /* merge location configuration 合并位置配置*/
+      ngx_null_command
 };
 
-ngx_module_t ngx_http_xquic_module = {
+
+static ngx_http_module_t  ngx_http_xquic_module_ctx = {
+    ngx_http_xquic_add_variables,          /* preconfiguration 预配置 */
+    ngx_http_xquic_init,                   /* postconfiguration 配置后 */
+
+    ngx_http_xquic_create_main_conf,       /* create main configuration 创建主要配置*/
+    ngx_http_xquic_init_main_conf,         /* init main configuration 初始化主要配置*/
+
+    ngx_http_xquic_create_srv_conf,        /* create server configuration 创建服务器配置*/
+    ngx_http_xquic_merge_srv_conf,         /* merge server configuration 合并服务器配置*/
+
+    NULL,                                  /* create location configuration 创建位置配置*/
+    NULL                                   /* merge location configuration 合并位置配置*/
+};
+
+
+ngx_module_t  ngx_http_xquic_module = {
     NGX_MODULE_V1,
-    &ngx_http_xquic_module_ctx,  /* module context 模块上下文 */
-    ngx_http_xquic_commands,     /* module directives 模块指令 */
-    NGX_HTTP_MODULE,             /* module type 模块类型 */
-    NULL,                        /* init master 初始化主机 */
-    NULL,                        /* init module 初始化模块 */
-    ngx_http_xquic_process_init, /* init process 初始化进程 */
-    NULL,                        /* init thread 初始化线程 */
-    NULL,                        /* exit thread 退出线程 */
-    ngx_http_xquic_process_exit, /* exit process 退出进程 */
-    NULL,                        /* exit master 退出主控 */
-    NGX_MODULE_V1_PADDING};
+    &ngx_http_xquic_module_ctx,            /* module context 模块上下文 */
+    ngx_http_xquic_commands,               /* module directives 模块指令 */
+    NGX_HTTP_MODULE,                       /* module type 模块类型 */
+    NULL,                                  /* init master 初始化主机 */
+    NULL,                                  /* init module 初始化模块 */
+    ngx_http_xquic_process_init,           /* init process 初始化进程 */
+    NULL,                                  /* init thread 初始化线程 */
+    NULL,                                  /* exit thread 退出线程 */
+    ngx_http_xquic_process_exit,           /* exit process 退出进程 */
+    NULL,                                  /* exit master 退出主控 */
+    NGX_MODULE_V1_PADDING
+};
 
-static ngx_http_variable_t ngx_http_xquic_vars[] = {
 
-    {ngx_string("xquic"), NULL,
-     ngx_http_xquic_variable, 0, 0, 0},
+static ngx_http_variable_t  ngx_http_xquic_vars[] = {
 
-    {ngx_string("xquic_off"),
-     ngx_http_xquic_off_set_variable,
-     ngx_http_xquic_off_get_variable,
-     0, NGX_HTTP_VAR_CHANGEABLE, 0},
+    { ngx_string("xquic"), NULL,
+      ngx_http_xquic_variable, 0, 0, 0 },
 
-    {ngx_string("xquic_connection_id"), NULL,
-     ngx_http_xquic_connection_id_variable, 0, 0, 0},
+    { ngx_string("xquic_off"),
+      ngx_http_xquic_off_set_variable,
+      ngx_http_xquic_off_get_variable,
+      0, NGX_HTTP_VAR_CHANGEABLE, 0 },
 
-    {ngx_string("xquic_stream_id"), NULL,
-     ngx_http_xquic_stream_id_variable, 0, 0, 0},
+    { ngx_string("xquic_connection_id"), NULL,
+      ngx_http_xquic_connection_id_variable, 0, 0, 0 },
 
-    {ngx_string("xquic_ssl_protocol"), NULL, ngx_xquic_ssl_static_variable,
-     (uintptr_t)ngx_xquic_ssl_get_protocol, NGX_HTTP_VAR_CHANGEABLE, 0},
+    { ngx_string("xquic_stream_id"), NULL,
+      ngx_http_xquic_stream_id_variable, 0, 0, 0 },
 
-    {ngx_string("xquic_ssl_cipher"), NULL, ngx_xquic_ssl_static_variable,
-     (uintptr_t)ngx_xquic_ssl_get_cipher_name, NGX_HTTP_VAR_CHANGEABLE, 0},
+    { ngx_string("xquic_ssl_protocol"), NULL, ngx_xquic_ssl_static_variable,
+      (uintptr_t) ngx_xquic_ssl_get_protocol, NGX_HTTP_VAR_CHANGEABLE, 0 },
 
-    {ngx_string("xquic_ssl_session_reused"), NULL, ngx_xquic_ssl_variable,
-     (uintptr_t)ngx_xquic_ssl_get_session_reused, NGX_HTTP_VAR_CHANGEABLE, 0},
+    { ngx_string("xquic_ssl_cipher"), NULL, ngx_xquic_ssl_static_variable,
+      (uintptr_t) ngx_xquic_ssl_get_cipher_name, NGX_HTTP_VAR_CHANGEABLE, 0 },
 
-    {ngx_null_string, NULL, NULL, 0, 0, 0}};
+    { ngx_string("xquic_ssl_session_reused"), NULL, ngx_xquic_ssl_variable,
+      (uintptr_t) ngx_xquic_ssl_get_session_reused, NGX_HTTP_VAR_CHANGEABLE, 0 },
+
+    { ngx_null_string, NULL, NULL, 0, 0, 0 }
+};
+
 
 static ngx_int_t
 ngx_http_xquic_variable(ngx_http_request_t *r,
-                        ngx_http_variable_value_t *v, uintptr_t data)
+    ngx_http_variable_value_t *v, uintptr_t data)
 {
     v->not_found = 1;
 
-    if (r->xqstream)
-    {
+    if (r->xqstream) {
         v->len = sizeof("xquic") - 1;
         v->valid = 1;
         v->no_cacheable = 0;
         v->not_found = 0;
-        v->data = (u_char *)"xquic";
+        v->data = (u_char *) "xquic";
     }
 
     return NGX_OK;
 }
 
+
 static void
 ngx_http_xquic_off_set_variable(ngx_http_request_t *r,
-                                ngx_http_variable_value_t *v, uintptr_t data)
+    ngx_http_variable_value_t *v, uintptr_t data)
 {
-    ngx_http_xquic_connection_t *qc;
+    ngx_http_xquic_connection_t  *qc;
 
-    if (r->xqstream)
-    {
+    if (r->xqstream) {
         qc = r->xqstream->connection;
-        if (v->len == 2 && ngx_strncasecmp(v->data, (u_char *)"on", 2) == 0)
-        {
+        if (v->len == 2 && ngx_strncasecmp(v->data, (u_char *) "on", 2) == 0) {
             qc->xquic_off = 1;
-        }
-        else if (v->len == 3 && ngx_strncasecmp(v->data, (u_char *)"off", 3) == 0)
-        {
+        } else if (v->len == 3 && ngx_strncasecmp(v->data, (u_char *) "off", 3) == 0) {
             qc->xquic_off = 0;
         }
     }
@@ -339,31 +367,26 @@ ngx_http_xquic_off_set_variable(ngx_http_request_t *r,
 
 static ngx_int_t
 ngx_http_xquic_off_get_variable(ngx_http_request_t *r,
-                                ngx_http_variable_value_t *v, uintptr_t data)
+    ngx_http_variable_value_t *v, uintptr_t data)
 {
-    ngx_http_xquic_connection_t *qc;
+    ngx_http_xquic_connection_t  *qc;
 
     v->not_found = 1;
 
-    if (r->xqstream)
-    {
+    if (r->xqstream) {
         qc = r->xqstream->connection;
 
         v->data = ngx_pnalloc(r->pool, sizeof("off") - 1);
-        if (v->data == NULL)
-        {
+        if (v->data == NULL) {
             return NGX_ERROR;
         }
 
-        if (qc->xquic_off == 0)
-        {
+        if (qc->xquic_off == 0) {
             v->len = 3;
             v->data[0] = 'o';
             v->data[1] = 'f';
             v->data[2] = 'f';
-        }
-        else
-        {
+        } else {
             v->len = 2;
             v->data[0] = 'o';
             v->data[1] = 'n';
@@ -377,22 +400,22 @@ ngx_http_xquic_off_get_variable(ngx_http_request_t *r,
     return NGX_OK;
 }
 
+
+
 static ngx_int_t
 ngx_http_xquic_connection_id_variable(ngx_http_request_t *r,
-                                      ngx_http_variable_value_t *v, uintptr_t data)
+    ngx_http_variable_value_t *v, uintptr_t data)
 {
-    u_char *p;
-    ngx_http_xquic_connection_t *qc;
+    u_char                       *p;
+    ngx_http_xquic_connection_t  *qc;
 
     v->not_found = 1;
 
-    if (r->xqstream != NULL && r->xqstream->connection != NULL)
-    {
+    if (r->xqstream != NULL && r->xqstream->connection != NULL) {
         qc = r->xqstream->connection;
 
         p = ngx_pnalloc(r->pool, qc->dcid.cid_len * 2);
-        if (p == NULL)
-        {
+        if (p == NULL) {
             return NGX_ERROR;
         }
 
@@ -406,19 +429,18 @@ ngx_http_xquic_connection_id_variable(ngx_http_request_t *r,
     return NGX_OK;
 }
 
+
 static ngx_int_t
 ngx_http_xquic_stream_id_variable(ngx_http_request_t *r,
-                                  ngx_http_variable_value_t *v, uintptr_t data)
+    ngx_http_variable_value_t *v, uintptr_t data)
 {
-    u_char *p;
+    u_char                      *p;
 
     v->not_found = 1;
 
-    if (r->xqstream)
-    {
+    if (r->xqstream) {
         p = ngx_pnalloc(r->pool, NGX_INT64_LEN);
-        if (p == NULL)
-        {
+        if (p == NULL) {
             return NGX_ERROR;
         }
 
@@ -427,21 +449,21 @@ ngx_http_xquic_stream_id_variable(ngx_http_request_t *r,
         v->no_cacheable = 0;
         v->not_found = 0;
         v->data = p;
-    }
+     }
 
     return NGX_OK;
 }
 
+
+
 static ngx_int_t
 ngx_http_xquic_add_variables(ngx_conf_t *cf)
 {
-    ngx_http_variable_t *var, *v;
+    ngx_http_variable_t  *var, *v;
 
-    for (v = ngx_http_xquic_vars; v->name.len; v++)
-    {
+    for (v = ngx_http_xquic_vars; v->name.len; v++) {
         var = ngx_http_add_variable(cf, &v->name, v->flags);
-        if (var == NULL)
-        {
+        if (var == NULL) {
             return NGX_ERROR;
         }
 
@@ -453,17 +475,17 @@ ngx_http_xquic_add_variables(ngx_conf_t *cf)
     return NGX_OK;
 }
 
+
 static char *
 ngx_http_xquic_streams_index_mask(ngx_conf_t *cf, void *post, void *data) // 确保配置项的值是2的幂次方-1
 {
     ngx_uint_t *np = data;
 
-    ngx_uint_t mask;
+    ngx_uint_t  mask;
 
     mask = *np - 1;
 
-    if (*np == 0 || (*np & mask))
-    {
+    if (*np == 0 || (*np & mask)) {
         return "must be a power of two";
     }
 
@@ -472,23 +494,23 @@ ngx_http_xquic_streams_index_mask(ngx_conf_t *cf, void *post, void *data) // 确
     return NGX_CONF_OK;
 }
 
+
 static char *
 ngx_http_xquic_set_log_level(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_str_t *value;
-    ngx_uint_t i;
+    ngx_str_t        *value;
+    ngx_uint_t        i;
     ngx_http_xquic_main_conf_t *qmcf = conf;
 
     value = cf->args->elts;
 
-    if (qmcf->log_level != NGX_CONF_UNSET_UINT)
-    {
+    if (qmcf->log_level != NGX_CONF_UNSET_UINT) {
         return "is duplicate";
     }
 
-    for (i = 0; i <= NGX_XQUIC_LOG_DEBUG; i++)
-    {
-        if (value[1].len == ngx_xquic_log_levels[i].len && ngx_strncmp(value[1].data, ngx_xquic_log_levels[i].data, value[1].len) == 0)
+    for (i = 0; i <= NGX_XQUIC_LOG_DEBUG; i++) {
+        if (value[1].len == ngx_xquic_log_levels[i].len
+            && ngx_strncmp(value[1].data, ngx_xquic_log_levels[i].data, value[1].len) == 0)
         {
             qmcf->log_level = i;
             return NGX_CONF_OK;
@@ -498,14 +520,15 @@ ngx_http_xquic_set_log_level(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return "invalid log level";
 }
 
+
+
 static void *
-ngx_http_xquic_create_main_conf(ngx_conf_t *cf) // 创建主要配置
+ngx_http_xquic_create_main_conf(ngx_conf_t *cf) //创建主要配置
 {
     ngx_http_xquic_main_conf_t *qmcf;
 
     qmcf = ngx_pcalloc(cf->pool, sizeof(ngx_http_xquic_main_conf_t));
-    if (qmcf == NULL)
-    {
+    if (qmcf == NULL) {
         return NULL;
     }
 
@@ -530,10 +553,10 @@ ngx_http_xquic_create_main_conf(ngx_conf_t *cf) // 创建主要配置
     qmcf->qpack_decoder_dynamic_table_capacity = NGX_CONF_UNSET_SIZE;
 
 #if (NGX_XQUIC_SUPPORT_CID_ROUTE)
-    qmcf->cid_route = NGX_CONF_UNSET;
-    qmcf->cid_server_id_offset = NGX_CONF_UNSET_UINT;
-    qmcf->cid_server_id_length = NGX_CONF_UNSET_UINT;
-    qmcf->cid_worker_id_offset = NGX_CONF_UNSET_UINT;
+    qmcf->cid_route             = NGX_CONF_UNSET;
+    qmcf->cid_server_id_offset  = NGX_CONF_UNSET_UINT;
+    qmcf->cid_server_id_length  = NGX_CONF_UNSET_UINT;
+    qmcf->cid_worker_id_offset  = NGX_CONF_UNSET_UINT;
 #endif
 
     qmcf->max_quic_concurrent_connection_cnt = NGX_CONF_UNSET_UINT;
@@ -541,129 +564,129 @@ ngx_http_xquic_create_main_conf(ngx_conf_t *cf) // 创建主要配置
     qmcf->max_quic_qps = NGX_CONF_UNSET_UINT;
 
     qmcf->anti_amplification_limit = NGX_CONF_UNSET_UINT;
-    
-    // added by qnwang for AR
-    qmcf->ditto_expected_time = NGX_CONF_UNSET_UINT;
 
     qmcf->keyupdate_pkt_threshold = NGX_CONF_UNSET_UINT;
+
+    /* added by jndu */
+    qmcf->enable_CS = NGX_CONF_UNSET_UINT;
+    qmcf->can_use_coward = NGX_CONF_UNSET_UINT;
+    qmcf->metric_cb_handle    = NULL;
 
     ngx_http_xquic_main_conf = qmcf;
 
     return qmcf;
 }
 
+
 static char *
-ngx_http_xquic_init_main_conf(ngx_conf_t *cf, void *conf) // 初始化主要配置
+ngx_http_xquic_init_main_conf(ngx_conf_t *cf, void *conf) //初始化主要配置
 {
     ngx_http_xquic_main_conf_t *qmcf = conf;
 
-    if (qmcf->log_level == NGX_CONF_UNSET_UINT)
-    {
+    if (qmcf->log_level == NGX_CONF_UNSET_UINT) {
         qmcf->log_level = NGX_XQUIC_LOG_ERROR;
     }
 
-    if (qmcf->intercom_pool_size == NGX_CONF_UNSET_SIZE)
-    {
+    if (qmcf->intercom_pool_size == NGX_CONF_UNSET_SIZE) {
         qmcf->intercom_pool_size = 4096;
     }
 
-    if (qmcf->new_udp_hash == NGX_CONF_UNSET)
-    {
+    if (qmcf->new_udp_hash == NGX_CONF_UNSET) {
         qmcf->new_udp_hash = 0;
     }
 
-    if (qmcf->socket_rcvbuf == NGX_CONF_UNSET)
-    {
-        qmcf->socket_rcvbuf = 1 * 1024 * 1024;
+    if (qmcf->socket_rcvbuf == NGX_CONF_UNSET) {
+        qmcf->socket_rcvbuf = 1*1024*1024;
     }
 
-    if (qmcf->socket_sndbuf == NGX_CONF_UNSET)
-    {
-        qmcf->socket_sndbuf = 1 * 1024 * 1024;
+    if (qmcf->socket_sndbuf == NGX_CONF_UNSET) {
+        qmcf->socket_sndbuf = 1*1024*1024;
     }
 
-    if (qmcf->conn_max_streams_can_create == NGX_CONF_UNSET_UINT)
-    {
+    if (qmcf->conn_max_streams_can_create == NGX_CONF_UNSET_UINT) {
         qmcf->conn_max_streams_can_create = 4096;
     }
 
-    if (qmcf->streams_index_mask == NGX_CONF_UNSET_UINT)
-    {
+    if (qmcf->streams_index_mask == NGX_CONF_UNSET_UINT) {
         qmcf->streams_index_mask = 32 - 1;
     }
 
-    if (qmcf->intercom_socket_path.data == NULL)
-    {
-        qmcf->intercom_socket_path.data = (u_char *)NGX_XQUIC_DEFAULT_DOMAIN_SOCKET_PATH;
+    if (qmcf->intercom_socket_path.data == NULL) {
+        qmcf->intercom_socket_path.data = (u_char *) NGX_XQUIC_DEFAULT_DOMAIN_SOCKET_PATH;
         qmcf->intercom_socket_path.len = sizeof(NGX_XQUIC_DEFAULT_DOMAIN_SOCKET_PATH) - 1;
     }
 
-    if (qmcf->certificate.data == NULL)
-    {
+    if (qmcf->certificate.data == NULL) {
         ngx_str_set(&(qmcf->certificate), "./server.crt");
     }
 
-    if (qmcf->certificate_key.data == NULL)
-    {
+    if (qmcf->certificate_key.data == NULL) {
         ngx_str_set(&(qmcf->certificate_key), "./server.key");
     }
 
-    if (qmcf->session_ticket_key.data == NULL)
-    {
+    if (qmcf->session_ticket_key.data == NULL) {
         ngx_str_set(&(qmcf->session_ticket_key), "./session_ticket.key");
     }
 
-    if (qmcf->stateless_reset_token_key.data == NULL)
-    {
+    if (qmcf->stateless_reset_token_key.data == NULL) {
         ngx_str_set(&(qmcf->stateless_reset_token_key), ".@34dshj+={}");
     }
 
-    if (qmcf->log_file_path.data == NULL)
-    {
+    if (qmcf->log_file_path.data == NULL) {
         ngx_str_set(&(qmcf->log_file_path), "./xquic_log");
     }
 
-    if (qmcf->congestion_control.data == NULL)
-    {
+    if (qmcf->congestion_control.data == NULL) {
         ngx_str_set(&(qmcf->congestion_control), "bbr");
     }
 
-    if (qmcf->pacing_on == NGX_CONF_UNSET)
-    {
+    if (qmcf->pacing_on == NGX_CONF_UNSET) {
         qmcf->pacing_on = 0;
     }
 
-    if (qmcf->qpack_encoder_dynamic_table_capacity == NGX_CONF_UNSET_SIZE)
-    {
+    if (qmcf->qpack_encoder_dynamic_table_capacity == NGX_CONF_UNSET_SIZE) {
         qmcf->qpack_encoder_dynamic_table_capacity = 16 * 1024;
     }
 
-    if (qmcf->qpack_decoder_dynamic_table_capacity == NGX_CONF_UNSET_SIZE)
-    {
+    if (qmcf->qpack_decoder_dynamic_table_capacity == NGX_CONF_UNSET_SIZE) {
         qmcf->qpack_decoder_dynamic_table_capacity = 16 * 1024;
+    }
+
+    /* added by jndu */
+    if (qmcf->enable_CS == NGX_CONF_UNSET) {
+        qmcf->enable_CS = 0;
+    }
+
+    if (qmcf->can_use_coward == NGX_CONF_UNSET) {
+        qmcf->can_use_coward = 0;
+    }
+
+    /* added by jndu */
+    if (qmcf->CS_metric_func_path.data == NULL && qmcf->enable_CS == 1) {
+        return "|xquic|CS|metric func path not found|";
     }
 
 #if (NGX_XQUIC_SUPPORT_CID_ROUTE)
 
-#define NGX_QUIC_CID_ROUTE_FIRST_OCTER (1)
-#define NGX_QUIC_CID_ROUTE_SERVER_ID (3)
-#define NGX_QUIC_CID_ROUTE_ENTROPY (4)
+#define NGX_QUIC_CID_ROUTE_FIRST_OCTER              (1)
+#define NGX_QUIC_CID_ROUTE_SERVER_ID                (3)
+#define NGX_QUIC_CID_ROUTE_ENTROPY                  (4)
 
-#define NGX_QUIC_CID_ROUTE_WORKER_ID_OFFSET (NGX_QUIC_CID_ROUTE_FIRST_OCTER + NGX_QUIC_CID_ROUTE_SERVER_ID + NGX_QUIC_CID_ROUTE_ENTROPY)
+#define NGX_QUIC_CID_ROUTE_WORKER_ID_OFFSET         (NGX_QUIC_CID_ROUTE_FIRST_OCTER + NGX_QUIC_CID_ROUTE_SERVER_ID + NGX_QUIC_CID_ROUTE_ENTROPY)
 
     ngx_conf_init_uint_value(qmcf->cid_server_id_offset, NGX_QUIC_CID_ROUTE_FIRST_OCTER);
     ngx_conf_init_uint_value(qmcf->cid_server_id_length, NGX_QUIC_CID_ROUTE_SERVER_ID);
     ngx_conf_init_uint_value(qmcf->cid_worker_id_offset, NGX_QUIC_CID_ROUTE_WORKER_ID_OFFSET);
 
     /* enable by default */
-    if (qmcf->cid_route != 0)
-    {
+    if (qmcf->cid_route != 0) {
         qmcf->cid_route = 1;
         ngx_xquic_init_cid_route(cf->cycle, qmcf);
     }
 
     /* overlap */
-    if (qmcf->cid_worker_id_offset < qmcf->cid_server_id_offset + qmcf->cid_server_id_length && qmcf->cid_worker_id_offset + NGX_QUIC_CID_ROUTE_WORKER_ID_LENGTH > qmcf->cid_server_id_offset)
+    if (qmcf->cid_worker_id_offset < qmcf->cid_server_id_offset + qmcf->cid_server_id_length 
+        && qmcf->cid_worker_id_offset + NGX_QUIC_CID_ROUTE_WORKER_ID_LENGTH > qmcf->cid_server_id_offset)
     {
         return "|xquic|overlap server id and worker id|";
     }
@@ -671,16 +694,14 @@ ngx_http_xquic_init_main_conf(ngx_conf_t *cf, void *conf) // 初始化主要配�
     /* get cid length */
     qmcf->cid_len = ngx_max(qmcf->cid_worker_id_offset + NGX_QUIC_CID_ROUTE_WORKER_ID_LENGTH, qmcf->cid_server_id_offset + qmcf->cid_server_id_length);
 
-#define NGX_QUIC_CID_MAX_LEN (20)
-    if (qmcf->cid_len > NGX_QUIC_CID_MAX_LEN)
-    {
+#define NGX_QUIC_CID_MAX_LEN  (20)
+    if (qmcf->cid_len > NGX_QUIC_CID_MAX_LEN) {
         return "|xquic|exceed max cid length|";
     }
 #undef NGX_QUIC_CID_MAX_LEN
 
     /* entropy space check */
-    if (qmcf->cid_len - NGX_QUIC_CID_ROUTE_WORKER_ID_LENGTH - qmcf->cid_server_id_length < NGX_QUIC_CID_ROUTE_ENTROPY)
-    {
+    if (qmcf->cid_len - NGX_QUIC_CID_ROUTE_WORKER_ID_LENGTH - qmcf->cid_server_id_length < NGX_QUIC_CID_ROUTE_ENTROPY) {
         ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0, "|xquic|insufficient entropy space|");
     }
 
@@ -694,14 +715,14 @@ ngx_http_xquic_init_main_conf(ngx_conf_t *cf, void *conf) // 初始化主要配�
     return NGX_CONF_OK;
 }
 
+
 static void *
-ngx_http_xquic_create_srv_conf(ngx_conf_t *cf) // 用于创建服务器配置结构体的回调函数
+ngx_http_xquic_create_srv_conf(ngx_conf_t *cf) //用于创建服务器配置结构体的回调函数
 {
     ngx_http_xquic_srv_conf_t *qscf;
 
     qscf = ngx_pcalloc(cf->pool, sizeof(ngx_http_xquic_srv_conf_t));
-    if (qscf == NULL)
-    {
+    if (qscf == NULL) {
         return NULL;
     }
 
@@ -725,7 +746,7 @@ ngx_http_xquic_create_srv_conf(ngx_conf_t *cf) // 用于创建服务器配置结
 }
 
 static char *
-ngx_http_xquic_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child) // 合并服务器配置结构体的回调函数
+ngx_http_xquic_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child) //合并服务器配置结构体的回调函数
 {
     ngx_http_xquic_srv_conf_t *prev = parent;
     ngx_http_xquic_srv_conf_t *conf = child;
@@ -741,24 +762,23 @@ ngx_http_xquic_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child) // 合�
                               prev->time_wait_max_conns, 10000);
 
     ngx_conf_merge_size_value(conf->session_flow_control_window,
-                              prev->session_flow_control_window, 1 * 1024 * 1024);
+                              prev->session_flow_control_window, 1 *1024 * 1024);
     ngx_conf_merge_size_value(conf->stream_flow_control_window,
                               prev->stream_flow_control_window, 128 * 1024);
 
     return NGX_CONF_OK;
 }
 
+
 static ngx_int_t
 ngx_http_xquic_process_init(ngx_cycle_t *cycle)
 {
-    if (ngx_http_xquic_main_conf == NULL)
-    {
+    if (ngx_http_xquic_main_conf == NULL) {
         /* if nginx.conf without http {} then xquic main conf equal null */
         return NGX_OK;
     }
 
-    if (ngx_xquic_process_init(cycle) != NGX_OK)
-    {
+    if (ngx_xquic_process_init(cycle) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -768,27 +788,26 @@ ngx_http_xquic_process_init(ngx_cycle_t *cycle)
 static void
 ngx_http_xquic_process_exit(ngx_cycle_t *cycle)
 {
-    if (ngx_http_xquic_main_conf == NULL)
-    {
+    if (ngx_http_xquic_main_conf == NULL) {
         return;
     }
 
     ngx_xquic_process_exit(cycle);
 }
 
+
 static ngx_int_t
-ngx_http_xquic_init(ngx_conf_t *cf) // 向HTTP框架注册一个处理函数
+ngx_http_xquic_init(ngx_conf_t *cf) //向HTTP框架注册一个处理函数
 {
-    ngx_http_handler_pt *h;
-    ngx_http_core_main_conf_t *cmcf;
+    ngx_http_handler_pt         *h;
+    ngx_http_core_main_conf_t   *cmcf;
 
     // 获取HTTP核心模块的主配置结构体
     cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
 
     // 将处理函数添加到NGX_HTTP_ACCESS_PHASE阶段的处理函数数组中
     h = ngx_array_push(&cmcf->phases[NGX_HTTP_ACCESS_PHASE].handlers);
-    if (h == NULL)
-    {
+    if (h == NULL) {
         return NGX_ERROR; // 如果无法添加处理函数，返回错误
     }
 
@@ -797,14 +816,14 @@ ngx_http_xquic_init(ngx_conf_t *cf) // 向HTTP框架注册一个处理函数
     return NGX_OK;
 }
 
+
 static ngx_int_t
 ngx_http_xquic_access_handler(ngx_http_request_t *r)
 {
-    ngx_http_xquic_connection_t *qc;
+    ngx_http_xquic_connection_t   *qc;
 
     // 检查是否存在 xqstream（QUIC stream），如果不存在则返回 NGX_DECLINED
-    if (!r->xqstream)
-    {
+    if (!r->xqstream) {
         return NGX_DECLINED;
     }
 
@@ -812,8 +831,7 @@ ngx_http_xquic_access_handler(ngx_http_request_t *r)
     qc = r->xqstream->connection;
 
     // 检查 qc->xquic_off 是否为真，如果为真则返回 NGX_HTTP_CLIENT_CLOSED_REQUEST
-    if (qc->xquic_off)
-    {
+    if (qc->xquic_off) {
         ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                       "xquic access handler: quic off");
 
@@ -825,27 +843,26 @@ ngx_http_xquic_access_handler(ngx_http_request_t *r)
     return NGX_DECLINED;
 }
 
+
 static ngx_int_t
-ngx_http_xquic_status_handler(ngx_http_request_t *r)
+ngx_http_xquic_status_handler(ngx_http_request_t *r) 
 {
-    // 用于处理 HTTP GET 和 HEAD 请求，生成包含 ngx_http_xquic 模块统计信息的响应体，并返回给客户端
-    size_t size;
-    ngx_int_t rc;
-    ngx_buf_t *b;
-    ngx_chain_t out;
-    ngx_atomic_int_t cps, active, rq, limit_conns, limit_reqs;
+    //用于处理 HTTP GET 和 HEAD 请求，生成包含 ngx_http_xquic 模块统计信息的响应体，并返回给客户端
+    size_t             size;
+    ngx_int_t          rc;
+    ngx_buf_t         *b;
+    ngx_chain_t        out;
+    ngx_atomic_int_t   cps, active, rq, limit_conns, limit_reqs;
 
     // 检查请求方法是否为 GET 或 HEAD，否则返回 NGX_HTTP_NOT_ALLOWED
-    if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD)
-    {
+    if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
         return NGX_HTTP_NOT_ALLOWED;
     }
 
     // 丢弃请求体
     rc = ngx_http_discard_request_body(r);
 
-    if (rc != NGX_OK)
-    {
+    if (rc != NGX_OK) {
         return rc;
     }
 
@@ -855,25 +872,23 @@ ngx_http_xquic_status_handler(ngx_http_request_t *r)
     r->headers_out.content_type_lowcase = NULL;
 
     // 如果是 HEAD 请求，设置响应头并发送
-    if (r->method == NGX_HTTP_HEAD)
-    {
+    if (r->method == NGX_HTTP_HEAD) {
         r->headers_out.status = NGX_HTTP_OK;
 
         rc = ngx_http_send_header(r);
 
-        if (rc == NGX_ERROR || rc > NGX_OK || r->header_only)
-        {
+        if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
             return rc;
         }
     }
 
     // 计算响应体的大小
-    size = sizeof("xquic: accepts active requests limit_conns limit_requests\n") - 1 + 8 + 5 * NGX_ATOMIC_T_LEN;
+    size = sizeof("xquic: accepts active requests limit_conns limit_requests\n") - 1
+           + 8 + 5 * NGX_ATOMIC_T_LEN;
 
     // 创建一个临时缓冲区
     b = ngx_create_temp_buf(r->pool, size);
-    if (b == NULL)
-    {
+    if (b == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -904,19 +919,19 @@ ngx_http_xquic_status_handler(ngx_http_request_t *r)
     // 发送响应头
     rc = ngx_http_send_header(r);
 
-    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only)
-    {
+    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
         return rc;
     }
-
+    
     // 发送响应体
     return ngx_http_output_filter(r, &out);
 }
 
+
 static char *
-ngx_http_set_xquic_status(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) // 配置指令处理函数
+ngx_http_set_xquic_status(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) //配置指令处理函数
 {
-    ngx_http_core_loc_conf_t *clcf;
+    ngx_http_core_loc_conf_t  *clcf;
 
     // 获取当前模块的 location 配置结构体
     clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
@@ -926,25 +941,22 @@ ngx_http_set_xquic_status(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) // 配
     return NGX_CONF_OK;
 }
 
+
 static ngx_int_t
 ngx_xquic_ssl_static_variable(ngx_http_request_t *r,
-                              ngx_http_variable_value_t *v, uintptr_t data)
+    ngx_http_variable_value_t *v, uintptr_t data)
 {
-    ngx_ssl_variable_handler_pt handler = (ngx_ssl_variable_handler_pt)data;
-    size_t len;
-    ngx_str_t s;
-    ngx_http_xquic_connection_t *qc;
+    ngx_ssl_variable_handler_pt   handler = (ngx_ssl_variable_handler_pt) data;
+    size_t                        len;
+    ngx_str_t                     s;
+    ngx_http_xquic_connection_t  *qc;
 
-    if (r->xqstream && r->xqstream->connection)
-    {
+    if (r->xqstream && r->xqstream->connection)  {
         qc = r->xqstream->connection;
-        if (qc->ssl_conn)
-        {
-            (void)handler(qc->ssl_conn, NULL, &s);
+        if (qc->ssl_conn) {
+            (void) handler(qc->ssl_conn, NULL, &s);
             v->data = s.data;
-            for (len = 0; v->data[len]; len++)
-            { /* void */
-            }
+            for (len = 0; v->data[len]; len++) { /* void */ }
             v->len = len;
             v->valid = 1;
             v->no_cacheable = 0;
@@ -959,29 +971,26 @@ ngx_xquic_ssl_static_variable(ngx_http_request_t *r,
     return NGX_OK;
 }
 
+
 static ngx_int_t
 ngx_xquic_ssl_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
-                       uintptr_t data)
+    uintptr_t data)
 {
-    ngx_ssl_variable_handler_pt handler = (ngx_ssl_variable_handler_pt)data;
-    ngx_str_t s;
-    ngx_http_xquic_connection_t *qc;
+    ngx_ssl_variable_handler_pt   handler = (ngx_ssl_variable_handler_pt) data;
+    ngx_str_t                     s;
+    ngx_http_xquic_connection_t  *qc;
 
-    if (r->xqstream && r->xqstream->connection)
-    {
+    if (r->xqstream && r->xqstream->connection)  {
         qc = r->xqstream->connection;
-        if (qc->ssl_conn)
-        {
-            if (handler(qc->ssl_conn, r->pool, &s) != NGX_OK)
-            {
+        if (qc->ssl_conn) {
+            if (handler(qc->ssl_conn, r->pool, &s) != NGX_OK) {            
                 return NGX_ERROR;
             }
 
             v->len = s.len;
             v->data = s.data;
 
-            if (v->len)
-            {
+            if (v->len) {
                 v->valid = 1;
                 v->no_cacheable = 0;
                 v->not_found = 0;
@@ -999,26 +1008,24 @@ ngx_xquic_ssl_variable(ngx_http_request_t *r, ngx_http_variable_value_t *v,
 ngx_int_t
 ngx_xquic_ssl_get_protocol(SSL *ssl, ngx_pool_t *pool, ngx_str_t *s)
 {
-    s->data = (u_char *)SSL_get_version(ssl);
+    s->data = (u_char *) SSL_get_version(ssl);
     return NGX_OK;
 }
 
 ngx_int_t
 ngx_xquic_ssl_get_cipher_name(SSL *ssl, ngx_pool_t *pool, ngx_str_t *s)
 {
-    s->data = (u_char *)SSL_get_cipher_name(ssl);
+    s->data = (u_char *) SSL_get_cipher_name(ssl);
     return NGX_OK;
 }
 
 ngx_int_t
 ngx_xquic_ssl_get_session_reused(SSL *ssl, ngx_pool_t *pool, ngx_str_t *s)
 {
-    if (SSL_session_reused(ssl))
-    {
+    if (SSL_session_reused(ssl)) {
         ngx_str_set(s, "r");
-    }
-    else
-    {
+
+    } else {
         ngx_str_set(s, ".");
     }
 

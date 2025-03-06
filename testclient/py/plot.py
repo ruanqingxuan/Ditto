@@ -9,7 +9,7 @@ import pandas as pd
 from matplotlib.ticker import FixedLocator
 from matplotlib.collections import LineCollection
 
-plt.style.use("/home/qnwang/worknew/AR/testclient/picture/paper.mplstyle")
+plt.style.use("/home/qnwang/backup/AR/testclient/picture/paper.mplstyle")
 
 # line styles
 styles = [
@@ -81,11 +81,11 @@ def plot_data_trans_time(trans_file, loss_file, flag):
     # 设置显示中文字体
     # 设置正常显示符号
     # sns.set_style({"font.sans-serif": ["simsun", "Times New Roman"]})
-    plt.rcParams["font.sans-serif"] = ["SimSun"]
+    # plt.rcParams["font.sans-serif"] = ["SimSun"]
     plt.rcParams["axes.unicode_minus"] = False
 
     # 绘制折线图
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(8, 6))
     # 创建双纵轴图
     fig, ax1 = plt.subplots()
 
@@ -93,29 +93,35 @@ def plot_data_trans_time(trans_file, loss_file, flag):
     ax1.plot(
         time_trans,
         trans_time,
-        label="每包传输时延",
+        label="delay",
         color="royalblue",
         linewidth=2,
     )
-    ax1.set_xlabel("时间(s)", fontsize=20)
+    ax1.set_xlabel("Time(s)", fontsize=38)
     ax1.set_xticks(range(0, 11, 2))  # 设置x轴刻度为0, 2, 4, ..., 10
-    ax1.tick_params(axis="x", labelsize=20)
-    ax1.set_ylabel("每包传输时延(ms)", fontsize=20)
+    ax1.tick_params(axis="x", labelsize=30)
+    ax1.set_ylabel("delay(ms)", fontsize=38)
+    if flag == 1:
+        ax1.set_yticks(range(100, 275, 25))  # 设置x轴刻度为0, 2, 4, ..., 10
+    else:
+        ax1.set_yticks(range(100, 9000, 2000))  # 设置x轴刻度为0, 2, 4, ..., 10
+
     # 调整y轴刻度标签的字体大小
-    ax1.tick_params(axis="y", labelsize=20)
+    ax1.tick_params(axis="y", labelsize=30)
 
     # 第二条折线图 loss-time
     ax2 = ax1.twinx()  # 创建共享x轴的第二个y轴
     ax2.step(
         loss_time_extended,
         loss_rate_extended,
-        label="丢包率",
+        label="Loss rate",
         color="tomato",
         where="post",
         linewidth=2,
     )
-    ax2.set_ylabel("丢包率(%)", fontsize=20)
-    ax2.tick_params(axis="y", labelsize=20)
+    ax2.set_ylabel("Loss rate(\%)", fontsize=38)
+    ax2.tick_params(axis="y", labelsize=30)
+    ax2.set_yticks(range(0, 11, 2))  # 设置y轴刻度为0, 20, 40, ..., 100
 
     # 自动布局，画子图
     plt.xlim(0, 10)
@@ -149,11 +155,11 @@ def plot_data_trans_time(trans_file, loss_file, flag):
         handles,
         labels,
         loc="upper right",
-        fontsize=15,
+        fontsize=20,
         frameon=True,
         markerscale=2,
         ncol=1,
-        bbox_to_anchor=(0.865, 0.945),
+        bbox_to_anchor=(0.835, 0.945),
     )
 
     plt.grid(True)
@@ -161,16 +167,19 @@ def plot_data_trans_time(trans_file, loss_file, flag):
     plt.show(block=False)
     print("show test2plot")
     if flag == 1:
-        plt.savefig("../picture/artrans.png", dpi=300, bbox_inches="tight")
+        plt.savefig(
+            "../picture/artrans.png", dpi=300, bbox_inches="tight", pad_inches=0.1
+        )
+        plt.savefig(
+            "../picture/artrans.pdf", dpi=300, bbox_inches="tight", pad_inches=0.1
+        )
     else:
-        plt.savefig("../picture/nonartrans.png", dpi=300, bbox_inches="tight")
-
-    # 设置标题和标签
-    # plt.title("10k file download啦啦啦")
-    # plt.xlabel("Packet Loss Rate (%)")
-    # plt.ylabel("Download Completion Time (s)")
-    # plt.legend()
-    # plt.grid(True)
+        plt.savefig(
+            "../picture/nonartrans.png", dpi=300, bbox_inches="tight", pad_inches=0.1
+        )
+        plt.savefig(
+            "../picture/nonartrans.pdf", dpi=300, bbox_inches="tight", pad_inches=0.1
+        )
 
 
 def plot_box_bar(no_ar_data, ar_data, standard):
@@ -319,8 +328,8 @@ def plot_bar(ar_file_paths, nonar_file_paths):
     plt.tick_params(axis="x", labelsize=24)
     plt.tick_params(axis="y", labelsize=24)
     # 添加标题和标签
-    plt.xlabel("用户定义的每包传输时延(ms)", fontsize=24)
-    plt.ylabel("平均每包实际传输时延(ms)", fontsize=24)
+    plt.xlabel("User-defined per packet transmission delay(ms)", fontsize=24)
+    plt.ylabel("Average actual transmission delay per packet(ms)", fontsize=24)
     # 横坐标标签
     x = np.arange(5)
     plt.xticks(ticks=x, labels=[100, 200, 300, 400, 500], fontsize=24)
@@ -331,7 +340,7 @@ def plot_bar(ar_file_paths, nonar_file_paths):
 
 
 def plot_bar2(ar_file_paths, nonar_file_paths):
-    plt.rcParams["font.sans-serif"] = ["SimSun"]
+    # plt.rcParams["font.sans-serif"] = ["SimSun"]
     # 用于存储每个文件中的数据
     ar_data = []
     nonar_data = []
@@ -365,21 +374,21 @@ def plot_bar2(ar_file_paths, nonar_file_paths):
     fig, ax = plt.subplots()
     width = 0.4  # 柱的宽度
     x = np.arange(5)
-    plt.xticks(ticks=x, labels=[100, 200, 300, 400, 500], fontsize=20)
+    plt.xticks(ticks=x, labels=[100, 200, 300, 400, 500], fontsize=30)
     ax.bar(
         x - width / 2,
         ar_data,
         edgecolor="orange",
         linewidth=2.5,
         color="white",  # White fill color
-        label="开启AR",
+        label="AR on",
         hatch="//",
         width=width,
     )
     ax.bar(
         x + width / 2,
         nonar_data,
-        label="不开启AR",
+        label="AR off",
         edgecolor="yellowgreen",
         linewidth=2.5,
         color="white",  # White fill color
@@ -387,20 +396,22 @@ def plot_bar2(ar_file_paths, nonar_file_paths):
         width=width,
     )
     plt.legend()
-    plt.tick_params(axis="x", labelsize=20)
-    plt.tick_params(axis="y", labelsize=20)
+    plt.tick_params(axis="x", labelsize=30)
+    plt.tick_params(axis="y", labelsize=30)
     # 添加标题和标签
-    plt.xlabel("用户定义的每包传输时延(ms)", fontsize=20)
-    plt.ylabel("平均每包实际传输时延(ms)", fontsize=20)
+    plt.xlabel("User-defined delay(ms)", fontsize=38)
+    plt.ylabel("Average delay(ms)", fontsize=38)
     plt.ylim(0, 290)  # 设置y轴范围
     plt.yticks(np.arange(0, 300, 50))  # 自定义刻度间隔
     # 横坐标标签
     x = np.arange(5)
-    plt.xticks(ticks=x, labels=[100, 200, 300, 400, 500], fontsize=20)
+    plt.xticks(ticks=x, labels=[100, 200, 300, 400, 500], fontsize=30)
     # 显示图例
-    plt.legend(loc="upper left", fontsize=18)
+    plt.legend(loc="upper left", fontsize=20)
     plt.show()
-    plt.savefig("../picture/bar2.png", dpi=300, bbox_inches="tight")
+    plt.tight_layout()  # 自动调整布局
+    plt.savefig("../picture/bar2.png", dpi=300, bbox_inches="tight", pad_inches=0.1)
+    plt.savefig("../picture/bar2.pdf", dpi=300, bbox_inches="tight", pad_inches=0.1)
 
 
 def adjacent_values(vals, q1, q3):
@@ -416,7 +427,7 @@ def plot_box_trans_time(file_paths, flag):
 
     #! 解决不显示的问题：中文设置为宋体格式
     # plt.rcParams["font.family"] = ["Times New Roman", "SimSun"]
-    plt.rcParams["font.sans-serif"] = ["SimSun"]
+    # plt.rcParams["font.sans-serif"] = ["SimSun"]
 
     # 用于存储每个文件中的数据
     data = []
@@ -437,7 +448,7 @@ def plot_box_trans_time(file_paths, flag):
             data.append([])  # 如果文件不存在，添加空数据以占位
 
     # 绘制箱线图
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize=(8, 6))
     # plt.boxplot(
     #     data,
     #     x_labels=x_labels,
@@ -504,16 +515,16 @@ def plot_box_trans_time(file_paths, flag):
     # plt.vlines(inds, quartile1, quartile3, color="k", linestyle="-", lw=5)
     # plt.vlines(inds, whiskers_min, whiskers_max, color="k", linestyle="-", lw=1)
     # 设置标题和坐标轴标签
-    plt.xlabel("用户定义的每包传输时延(ms)", fontsize=28)
-    plt.ylabel("每包实际传输时延(ms)", fontsize=28)
+    plt.xlabel("User-defined delay(ms)", fontsize=38)
+    plt.ylabel("Average delay(ms)", fontsize=38)
 
     # 设置纵坐标最大值为600
     if flag == 1:
         plt.ylim(0, 500)  # 设置y轴范围
-        plt.yticks(np.arange(0, 600, 100), fontsize=28)  # 自定义刻度间隔
+        plt.yticks(np.arange(0, 650, 100), fontsize=30)  # 自定义刻度间隔
     else:
         plt.ylim(0, 700)  # 设置y轴范围
-        plt.yticks(np.arange(0, 750, 100), fontsize=28)  # 自定义刻度间隔
+        plt.yticks(np.arange(0, 800, 100), fontsize=30)  # 自定义刻度间隔
 
     # 增加次要刻度线，更好显示低值区域
     # plt.yscale('symlog', linthresh=50)  # 对称对数尺度，集中于 100 左右
@@ -521,7 +532,7 @@ def plot_box_trans_time(file_paths, flag):
 
     # 设置 x 轴刻度
     x = [1, 2, 3, 4, 5]
-    plt.xticks(ticks=x, labels=[100, 200, 300, 400, 500], fontsize=28)
+    plt.xticks(ticks=x, labels=[100, 200, 300, 400, 500], fontsize=30)
 
     # 显示图形
     plt.tight_layout()
@@ -529,9 +540,19 @@ def plot_box_trans_time(file_paths, flag):
     plt.show(block=False)
     print("show test1plot")
     if flag == 1:
-        plt.savefig("../picture/ar_box.png", dpi=300, bbox_inches="tight")
+        plt.savefig(
+            "../picture/ar_box.png", dpi=300, bbox_inches="tight", pad_inches=0.1
+        )
+        plt.savefig(
+            "../picture/ar_box.pdf", dpi=300, bbox_inches="tight", pad_inches=0.1
+        )
     else:
-        plt.savefig("../picture/nonar_box.png", dpi=300, bbox_inches="tight")
+        plt.savefig(
+            "../picture/nonar_box.png", dpi=300, bbox_inches="tight", pad_inches=0.1
+        )
+        plt.savefig(
+            "../picture/nonar_box.pdf", dpi=300, bbox_inches="tight", pad_inches=0.1
+        )
 
 
 # main
@@ -554,7 +575,7 @@ if __name__ == "__main__":
             "../data/test1/500_box_data_0.txt",
         ]
         # 使用画图格式插件
-        # plot_box_trans_time(ar_file_paths, 1)
+        plot_box_trans_time(ar_file_paths, 1)
         plot_box_trans_time(nonar_file_paths, 0)
         # standard_delays = [100, 200, 300, 400, 500]
         # for index, standard in enumerate(standard_delays):
@@ -563,7 +584,7 @@ if __name__ == "__main__":
         #     with open(f"../data/test1/{standard}_box_data_1.txt", "r") as file:
         #         ar_data = [float(line.strip()) for line in file.readlines()]
         #     # plot_box_bar(no_ar_data, ar_data, standard)
-        # plot_bar2(ar_file_paths, nonar_file_paths)
+        plot_bar2(ar_file_paths, nonar_file_paths)
 
     else:
         ar_trans_file = "../data/test2/100_trans_data_1.txt"  # 传输时间文件名

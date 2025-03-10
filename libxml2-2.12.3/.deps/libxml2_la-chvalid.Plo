@@ -1,0 +1,14 @@
+libxml2_la-chvalid.lo: chvalid.c /usr/include/stdc-predef.h libxml.h \
+ config.h include/libxml/xmlversion.h include/libxml/xmlexports.h \
+ include/libxml/chvalid.h include/libxml/xmlstring.h \
+ /usr/lib/gcc/x86_64-linux-gnu/10/include/stdarg.h \
+ /usr/lib/gcc/x86_64-linux-gnu/10/include/stddef.h
+/usr/include/stdc-predef.h:
+libxml.h:
+config.h:
+include/libxml/xmlversion.h:
+include/libxml/xmlexports.h:
+include/libxml/chvalid.h:
+include/libxml/xmlstring.h:
+/usr/lib/gcc/x86_64-linux-gnu/10/include/stdarg.h:
+/usr/lib/gcc/x86_64-linux-gnu/10/include/stddef.h:

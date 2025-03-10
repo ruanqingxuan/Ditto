@@ -1,4 +1,4 @@
-prefix=/home/qnwang/worknew/AR/tengine/../Tongsuo-8.3.2/.openssl
+prefix=/home/qnwang/Ditto/tengine/../Tongsuo-8.3.2/.openssl
 exec_prefix=${prefix}
 libdir=${exec_prefix}/lib
 includedir=${prefix}/include

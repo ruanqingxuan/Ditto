@@ -197,6 +197,20 @@ xqc_send_ctl_create(xqc_path_ctx_t *path)
     send_ctl->ctl_info.bw_change_threshold = XQC_DEFAULT_BW_CHANGE_THRESHOLD;
 
     send_ctl->sampler.send_ctl = send_ctl;
+ 
+     //add to calculate bw and lossrate by cfz
+     send_ctl->ctl_last_pkn_number_cfz = 0;
+ 
+     gettimeofday(&send_ctl->ctl_last_calc_bw_time_cfz, NULL);
+     send_ctl->ctl_bandwidth_count_cfz = 0;
+     send_ctl->ctl_hormonic_bandwidth_cfz = 0;
+ 
+     gettimeofday(&send_ctl->ctl_last_acked_time_cfz, NULL);
+     send_ctl->ctl_last_acked_count_cfz = 0;
+     send_ctl->ctl_last_loss_count_cfz = 0;
+     send_ctl->ctl_last_acked_pkn_number_cfz = 0;
+     send_ctl->ctl_lossrate_cfz = 0;
+     //end add by cfz
 
     /* 初始化loss_list测量*/
     send_ctl->loss_list = xqc_calloc(1, sizeof(xqc_calc_loss_list_node_t));
@@ -1030,6 +1044,31 @@ xqc_send_ctl_on_ack_received(xqc_send_ctl_t *send_ctl, xqc_pn_ctl_t *pn_ctl, xqc
     /* DetectAndRemoveLostPackets + OnPacketsLost 检测丢包并处理 */
     xqc_send_ctl_detect_lost(send_ctl, send_queue, pns, ack_recv_time);
 
+     //add to calculate lossrate by cfz
+     struct timeval cur_time;
+     gettimeofday(&cur_time, NULL);
+     
+     uint64_t test_last_loss_count = send_ctl->ctl_last_loss_count_cfz;
+     uint64_t test_last_acked_count = send_ctl->ctl_last_acked_count_cfz;
+     uint64_t test_loss_count = send_ctl->ctl_lost_pkts_number;
+     uint64_t test_acked_count = path_largest_pkt_num;
+     uint64_t test_send_count = send_ctl->ctl_send_count;
+ 
+     uint64_t milliseconds_diff = (cur_time.tv_sec - send_ctl->ctl_last_acked_time_cfz.tv_sec) * 1000 + (cur_time.tv_usec - send_ctl->ctl_last_acked_time_cfz.tv_usec) / 1000;
+     if (send_ctl->ctl_last_acked_count_cfz == 0) {
+         send_ctl->ctl_last_acked_time_cfz = cur_time;
+         send_ctl->ctl_last_acked_count_cfz = test_acked_count;
+         send_ctl->ctl_last_loss_count_cfz = test_loss_count;
+     }
+     else if (milliseconds_diff >= 500 && test_acked_count - test_last_acked_count > 100) {
+     // else {
+         send_ctl->ctl_lossrate_cfz = 0.875 * send_ctl->ctl_lossrate_cfz + 0.125 * (float)(test_loss_count - test_last_loss_count) / (test_acked_count - test_last_acked_count);
+         send_ctl->ctl_last_acked_time_cfz = cur_time;
+         send_ctl->ctl_last_acked_count_cfz = test_acked_count;
+         send_ctl->ctl_last_loss_count_cfz = test_loss_count;
+     }
+     // end add by cfz
+ 
 
     // 更新recv record
     if (need_del_record) {
@@ -1265,6 +1304,71 @@ xqc_send_ctl_on_ack_received(xqc_send_ctl_t *send_ctl, xqc_pn_ctl_t *pn_ctl, xqc
     // 更新发送控制信息的循环记录
     xqc_send_ctl_info_circle_record(send_ctl);
     xqc_log_event(conn->log, REC_METRICS_UPDATED, send_ctl);
+ 
+     // output RTT,bw,loss rate by cfz
+     uint64_t testbw = 300000;
+     if (send_ctl->ctl_cong_callback->xqc_cong_ctl_get_bandwidth_estimate != NULL) {
+         testbw = send_ctl->ctl_cong_callback->xqc_cong_ctl_get_bandwidth_estimate(send_ctl->ctl_cong);
+     }
+     struct timeval cur_time1;
+     gettimeofday(&cur_time1, NULL);
+     uint64_t milliseconds_diff1 = (cur_time1.tv_sec - send_ctl->ctl_last_calc_bw_time_cfz.tv_sec) * 1000 + (cur_time1.tv_usec - send_ctl->ctl_last_calc_bw_time_cfz.tv_usec) / 1000;
+     float test_last_hormonic_bandwidth_cfz = send_ctl->ctl_hormonic_bandwidth_cfz;
+     // if (milliseconds_diff1 >= 100) {
+         if (send_ctl->ctl_bandwidth_count_cfz < 5) {
+             send_ctl->ctl_bandwidth_cfz[send_ctl->ctl_bandwidth_count_cfz] = testbw;
+             send_ctl->ctl_bandwidth_count_cfz++;
+             //send_ctl->ctl_hormonic_bandwidth_cfz = 1;
+         }
+         else {
+             for (int i = 0; i < 4; i++) {
+                 send_ctl->ctl_bandwidth_cfz[i] = send_ctl->ctl_bandwidth_cfz[i+1];
+             }
+             send_ctl->ctl_bandwidth_cfz[send_ctl->ctl_bandwidth_count_cfz-1] = testbw;
+             //send_ctl->ctl_hormonic_bandwidth_cfz = 2;
+         }
+         send_ctl->ctl_last_calc_bw_time_cfz = cur_time1;
+         send_ctl->ctl_hormonic_bandwidth_cfz = 0;
+         for (int i = 0; i < send_ctl->ctl_bandwidth_count_cfz; i++) {
+             send_ctl->ctl_hormonic_bandwidth_cfz += 1 / send_ctl->ctl_bandwidth_cfz[i];
+         }
+         send_ctl->ctl_hormonic_bandwidth_cfz = send_ctl->ctl_bandwidth_count_cfz / send_ctl->ctl_hormonic_bandwidth_cfz;
+         // FILE* fp = fopen("/home/fzchen/dash.js/samples/dash-if-reference-player/data2.txt", "a");
+         // fprintf(fp, "|bw:%lu|hormonic_bandwidth:%f|\n", 
+         //         testbw,
+         //         send_ctl->ctl_hormonic_bandwidth_cfz * 8);
+         // fclose(fp);
+     // }
+     uint64_t testpkn_num = packet_out->po_pkt.pkt_num;
+     uint64_t testsrtt = send_ctl->ctl_srtt;
+     uint64_t testpto = xqc_send_ctl_calc_pto(send_ctl);
+     xqc_usec_t duration = (send_ctl->ctl_srtt + xqc_max(send_ctl->ctl_rttvar << 2, XQC_kGranularity * 1000)
+             + send_ctl->ctl_conn->remote_settings.max_ack_delay * 1000) * XQC_kPersistentCongestionThreshold;
+     uint64_t testrto = duration;
+     
+     char buffer[26];
+     struct tm* tm_info = localtime(&cur_time1.tv_sec);
+     strftime(buffer, 26, "%H.%M.%S", tm_info);
+     // if (testpkn_num - send_ctl->ctl_last_pkn_number_cfz >= 100) {
+     // if (milliseconds_diff1 >= 100) {
+     if (test_last_hormonic_bandwidth_cfz != send_ctl->ctl_hormonic_bandwidth_cfz) {
+         send_ctl->ctl_last_pkn_number_cfz = testpkn_num;
+         FILE* fp = fopen("/home/fzchen/dash.js/samples/dash-if-reference-player/data.txt", "w+");
+         fprintf(fp, "|bw:%f|loss:%f|rtt:%lu|pto:%lu|rto:%lu|time:%s.%03ld|\n", 
+                 send_ctl->ctl_hormonic_bandwidth_cfz * 8,
+                 send_ctl->ctl_lossrate_cfz,
+                 testsrtt,
+                 testpto,
+                 testrto,
+                 buffer, 
+                 cur_time1.tv_usec / 1000);
+         fclose(fp);
+     }
+     // FILE* fp1 = fopen("/home/fzchen/dash.js/samples/dash-if-reference-player/data1.txt", "a+");
+     // fprintf(fp1, "|nowbw:%lu|horbw:%f|time:%s.%03ld|\n", testbw, send_ctl->ctl_hormonic_bandwidth_cfz * 8, buffer, cur_time1.tv_usec / 1000);
+     // fclose(fp1);
+     // end add by cfz
+ 
     return XQC_OK;
 }
 

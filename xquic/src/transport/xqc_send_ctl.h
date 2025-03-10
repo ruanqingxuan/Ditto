@@ -158,6 +158,21 @@ typedef struct xqc_send_ctl_s {
 
     xqc_send_ctl_info_t         ctl_info;
     
+     //add to calculate bw and lossrate by cfz
+     uint32_t                    ctl_last_pkn_number_cfz;
+ 
+     struct timeval              ctl_last_calc_bw_time_cfz;
+     float                       ctl_bandwidth_cfz[5];
+     float                       ctl_hormonic_bandwidth_cfz;
+     uint32_t                    ctl_bandwidth_count_cfz;
+ 
+     struct timeval              ctl_last_acked_time_cfz;
+     uint32_t                    ctl_last_acked_count_cfz;
+     uint32_t                    ctl_last_loss_count_cfz;
+     uint32_t                    ctl_last_acked_pkn_number_cfz;
+     float                       ctl_lossrate_cfz;
+     // end add by cfz
+     
     /* for calculate power jndu*/
     xqc_stream_CCA_info_t       stream_CCA_info;
     float                       ctl_throughput;

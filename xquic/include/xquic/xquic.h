@@ -71,10 +71,10 @@ typedef enum xqc_proto_version_s {
 #define XQC_DGRAM_RETX_ASKED_BY_APP     1
 
 // self defined extra log file path
-#define XQC_CLIENT_CS_EXTRA_LOG_FILE              "/home/qnwang/worknew/CS/CS.clog"
-#define XQC_CLIENT_AR_EXTRA_LOG_FILE              "/home/qnwang/worknew/CS/AR.clog"
-#define XQC_SERVER_CS_EXTRA_LOG_FILE              "/home/qnwang/worknew/CS/CS.slog"
-#define XQC_SERVER_AR_EXTRA_LOG_FILE              "/home/qnwang/worknew/CS/AR.slog"
+#define XQC_CLIENT_CS_EXTRA_LOG_FILE              "/home/qnwang/Ditto/CS.clog"
+#define XQC_CLIENT_AR_EXTRA_LOG_FILE              "/home/qnwang/Ditto/AR.clog"
+#define XQC_SERVER_CS_EXTRA_LOG_FILE              "/home/qnwang/Ditto/CS.slog"
+#define XQC_SERVER_AR_EXTRA_LOG_FILE              "/home/qnwang/Ditto/AR.slog"
 
 
 /**

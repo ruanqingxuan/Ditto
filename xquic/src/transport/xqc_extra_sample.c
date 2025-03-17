@@ -72,6 +72,8 @@ void xqc_extra_sample_loss_list_update(xqc_send_ctl_t *send_ctl, xqc_packet_numb
             xqc_log(conn->log, XQC_LOG_DEBUG, "|CCA switching|low:%d|high:%d|drop pkt_num:%d|drop rate: %.8f|is lost:%d|",
                     low, high, lost, (float)(drop->drop_range.num_of_drop) / (float)(high - low + 1), flag);
             send_ctl->ctl_loss_rate = (float)(drop->drop_range.num_of_drop) / (float)(high - low + 1);
+            xqc_extra_log(conn->log, conn->AR_extra_log, "|CCA switching|low:%d|high:%d|drop pkt_num:%d|drop rate: %.8f|is lost:%d|",
+                low, high, lost, (float)(drop->drop_range.num_of_drop) / (float)(high - low + 1), flag);
             // added by qnwang for AR
             xqc_update_avg_lossrate(send_ctl->ctl_conn, send_ctl->ctl_loss_rate);
             continue;

@@ -32,6 +32,7 @@ void xqc_update_avg_lossrate(xqc_connection_t *conn, float lossrate)
     float weight = conn->active_retrans->loss_weight;
     float avg_lossrate = conn->active_retrans->avg_lossrate;
     conn->active_retrans->avg_lossrate = weight * lossrate + (1 - weight) * avg_lossrate;
+
     xqc_update_active_num(conn);
     xqc_extra_log(conn->log, conn->AR_extra_log, "[update lossrate:%.5f] [avg_lossrate:%.5f]",
                   conn->active_retrans->loss_rate, conn->active_retrans->avg_lossrate);
@@ -67,48 +68,6 @@ int xqc_update_success_probability(xqc_connection_t *conn, xqc_usec_t rtt)
     xqc_extra_log(conn->log, conn->AR_extra_log, "[expected_time:%ui] [rtt:%ui] [result:%ui]", conn->conn_settings.expected_time, rtt / 1000, result);
     xqc_log(conn->log, XQC_LOG_INFO, "|Active Retransmission|update success flag:%ui|\n",
             conn->active_retrans->flag);
-    // 5 situations
-    // t set too loose, AR off
-    // if (proportion > extremum)
-    // {
-    //     conn->active_retrans->flag = XQC_FALSE;
-    //     xqc_extra_log(conn->log, conn->AR_extra_log, "[update success proportion > extremum] [flag:%ui]",
-    //                   conn->active_retrans->flag);
-    // }
-    // else if (proportion == extremum) // 1 result success is also loose, about 0.5.
-    // {
-    //     conn->active_retrans->flag = XQC_TRUE;
-    //     conn->active_retrans->success_probability = (8 - sqrt(10)) / 9; // extreme point
-    //     xqc_extra_log(conn->log, conn->AR_extra_log, "[update success proportion == extremum] [flag:%ui] [success:%.5f]",
-    //                   conn->active_retrans->flag, conn->active_retrans->success_probability);
-    // }
-    // else if (proportion < extremum && proportion > 1) // 2 results, choose bigger one
-    // {
-    //     int a = 3;
-    //     int b = -8;
-    //     int c = 6;
-    //     float d = proportion * (-1);
-    //     // xqc_extra_log(conn->log, conn->AR_extra_log, "[qnwang a:%d] [b:%d] [c:%d] [d:%.5f]", a, b, c, d);
-    //     conn->active_retrans->success_probability = xqc_cardano_solution(conn, a, b, c, d);
-    //     xqc_extra_log(conn->log, conn->AR_extra_log, "[update success 1<proportion<extremum ] [flag:%ui] [success:%.5f]",
-    //                   conn->active_retrans->flag, conn->active_retrans->success_probability);
-    // }
-    // else if (proportion <= 1) // 0 results, set 0.99
-    // {
-    //     conn->active_retrans->flag = XQC_TRUE;
-    //     conn->active_retrans->success_probability = 0.99; // max
-    //     xqc_extra_log(conn->log, conn->AR_extra_log, "[update success proportion<=1 ] [flag:%ui] [success:%.5f]",
-    //                   conn->active_retrans->flag, conn->active_retrans->success_probability);
-    // }
-    // else
-    // {
-    //     conn->active_retrans->flag = XQC_FALSE;
-    //     xqc_extra_log(conn->log, conn->AR_extra_log, "[update success error flag:%ui]",
-    //                   conn->active_retrans->flag);
-    //     xqc_log(conn->log, XQC_LOG_INFO, "|Active Retransmission|update success error flag:%ui|\n",
-    //             conn->active_retrans->flag);
-    //     return XQC_ERROR;
-    // }
     return XQC_OK;
 }
 
@@ -269,6 +228,10 @@ void xqc_update_active_num(xqc_connection_t *conn)
 {
     float ar_num = log((1 - conn->active_retrans->threshold)) / log((1 - conn->active_retrans->success_probability));
     conn->active_retrans->active_num = xqc_max((int)ceil(ar_num), 1);
+    if (conn->active_retrans->active_num > 8)
+    {
+        conn->active_retrans->active_num = 1;
+    }
     xqc_extra_log(conn->log, conn->AR_extra_log, "[update num:%ui]", conn->active_retrans->active_num);
     xqc_log(conn->log, XQC_LOG_INFO, "|Active Retransmission|update active_num:%ui|\n", conn->active_retrans->active_num);
 }

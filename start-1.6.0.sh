@@ -72,3 +72,4 @@ ssh qnwang@udpcc.dfshan.net <<EOF
     ./tengine -c conf/nginx.conf
 EOF
 #sudo lsof -i:8443
+# python3 client.py https://udpcc.dfshan.net:8443/10M
